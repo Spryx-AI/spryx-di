@@ -1,0 +1,23 @@
+spryx_di/module.py
+  e4ed8980eb5b64a1 44-55
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.5",
+  "base_commit_sha": "ccb89f983504ffda426fe6cb090f52e30e899ee0",
+  "prompts": {
+    "e4ed8980eb5b64a1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "09ca8192-1f81-4ccc-ab8d-8813d1b363db",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Pedro Cantidio",
+      "messages": [],
+      "total_additions": 12,
+      "total_deletions": 2,
+      "accepted_lines": 12,
+      "overriden_lines": 0
+    }
+  }
+}
