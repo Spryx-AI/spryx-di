@@ -1,14 +1,3 @@
-"""Order handlers — ZERO imports from spryx_di.
-
-Dependencies are declared via __init__ type hints.
-The container auto-wires everything at resolution time.
-
-CreateOrderHandler depends on:
-  - OrderRepository       (from orders module — own provider)
-  - UserReader            (from identity module — via import)
-  - NotificationSender    (from notifications module — via import)
-"""
-
 from __future__ import annotations
 
 import uuid

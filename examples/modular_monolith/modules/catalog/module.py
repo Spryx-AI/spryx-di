@@ -14,5 +14,5 @@ catalog_module = Module(
         ),
         Provider(provide=ProductReader, use_class=InMemoryProductReader, scope=Scope.SINGLETON),
     ],
-    exports=[ProductReader],  # Only ProductReader is public
+    exports=[ProductReader],
 )

@@ -5,8 +5,6 @@ from modules.identity.ports import UserReader, UserRepository
 
 
 class InMemoryUserRepository(UserRepository):
-    """In-memory adapter for UserRepository — used in examples and tests."""
-
     def __init__(self) -> None:
         self._users: dict[str, User] = {}
 
@@ -18,8 +16,6 @@ class InMemoryUserRepository(UserRepository):
 
 
 class InMemoryUserReader(UserReader):
-    """In-memory adapter for UserReader — delegates to the repository."""
-
     def __init__(self, repo: UserRepository) -> None:
         self._repo = repo
 
@@ -27,5 +23,4 @@ class InMemoryUserReader(UserReader):
         return self._repo.get_by_id(user_id)
 
     def list_all(self) -> list[User]:
-        # In a real app, this would query the database
         return []

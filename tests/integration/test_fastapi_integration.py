@@ -74,7 +74,6 @@ class TestRequestScopeMiddleware:
 
         @app.get("/test")
         def endpoint(handler: Handler = ScopedInject(Handler)) -> dict[str, int]:
-            # Each request creates a new scope, so transient resolves differ
             return {"handler_id": id(handler)}
 
         client = TestClient(app)
@@ -82,7 +81,6 @@ class TestRequestScopeMiddleware:
         r2 = client.get("/test")
         assert r1.status_code == 200
         assert r2.status_code == 200
-        # Different handler instances from different scopes
         assert r1.json()["handler_id"] != r2.json()["handler_id"]
 
 

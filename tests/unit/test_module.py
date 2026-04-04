@@ -172,7 +172,6 @@ class TestApplicationContext:
             globals=[Provider(provide=Database, use_value=db)],
         )
 
-        # TeamReader is available in conversations module via import
         handler = ctx.resolve_within(conversations, ListHandler)
         assert isinstance(handler.reader, PgTeamReader)
 
@@ -205,7 +204,7 @@ class TestModuleBoundary:
                 ),
                 Provider(provide=TeamReader, use_class=PgTeamReader, scope=Scope.SINGLETON),
             ],
-            exports=[TeamReader],  # TeamRepository NOT exported
+            exports=[TeamReader],
         )
         conversations = Module(
             name="conversations",
@@ -224,7 +223,6 @@ class TestModuleBoundary:
             globals=[Provider(provide=Database, use_value=db)],
         )
 
-        # TeamRepository is a provider of identity but NOT exported
         with pytest.raises(ModuleBoundaryError) as exc_info:
             ctx.resolve_within(conversations, TeamRepository)
         assert "TeamRepository" in str(exc_info.value)
@@ -238,7 +236,7 @@ class TestModuleBoundary:
                     Module(
                         name="bad",
                         providers=[],
-                        exports=[TeamReader],  # Not a provider!
+                        exports=[TeamReader],
                     )
                 ]
             )
@@ -253,7 +251,7 @@ class TestModuleBoundary:
                     Module(
                         name="consumer",
                         providers=[],
-                        imports=[orphan],  # orphan is not in modules list
+                        imports=[orphan],
                     )
                 ]
             )
@@ -316,7 +314,7 @@ class StripeBillingGateway(BillingGateway):
 
 class TestForwardRef:
     def test_forward_ref_resolves_circular(self) -> None:
-        """Two modules that depend on each other via forward_ref — should work."""
+
         identity = Module(
             name="identity",
             providers=[
@@ -343,12 +341,11 @@ class TestForwardRef:
             globals=[Provider(provide=Database, use_value=db)],
         )
 
-        # Both resolve correctly
         assert isinstance(ctx.resolve(TeamReader), PgTeamReader)
         assert isinstance(ctx.resolve(BillingGateway), StripeBillingGateway)
 
     def test_forward_ref_logs_warning(self, caplog: pytest.LogCaptureFixture) -> None:
-        """Circular via forward_ref should log a warning."""
+
         mod_a = Module(
             name="a",
             providers=[Provider(provide=TeamReader, use_class=PgTeamReader, scope=Scope.SINGLETON)],
@@ -375,7 +372,7 @@ class TestForwardRef:
         assert "Circular dependency between modules" in caplog.text
 
     def test_forward_ref_not_found_raises(self) -> None:
-        """forward_ref to non-existent module should raise."""
+
         mod = Module(
             name="test",
             providers=[],
@@ -386,7 +383,7 @@ class TestForwardRef:
         assert "nonexistent" in str(exc_info.value)
 
     def test_direct_circular_still_raises(self) -> None:
-        """Direct refs (not forward_ref) still raise CircularModuleError."""
+
         mod_a: Module = Module(name="a", providers=[], imports=[])
         mod_b: Module = Module(name="b", providers=[], imports=[mod_a])
         mod_a.imports = [mod_b]
@@ -395,14 +392,14 @@ class TestForwardRef:
             ApplicationContext(modules=[mod_a, mod_b])
 
     def test_forward_ref_cross_module_boundary(self) -> None:
-        """forward_ref imports respect exports — boundary enforcement works."""
+
         identity = Module(
             name="identity",
             providers=[
                 Provider(provide=TeamRepository, use_class=PgTeamRepository, scope=Scope.SINGLETON),
                 Provider(provide=TeamReader, use_class=PgTeamReader, scope=Scope.SINGLETON),
             ],
-            exports=[TeamReader],  # TeamRepository NOT exported
+            exports=[TeamReader],
             imports=[forward_ref("billing")],
         )
         billing = Module(
@@ -423,18 +420,14 @@ class TestForwardRef:
             globals=[Provider(provide=Database, use_value=db)],
         )
 
-        # TeamReader is exported — billing can access it
         reader = ctx.resolve_within(billing, TeamReader)
         assert isinstance(reader, PgTeamReader)
 
-        # TeamRepository is NOT exported — billing cannot access it
         with pytest.raises(ModuleBoundaryError):
             ctx.resolve_within(billing, TeamRepository)
 
 
 class FakeResource:
-    """Simulates an async resource with __aexit__."""
-
     def __init__(self) -> None:
         self.closed = False
 
@@ -446,8 +439,6 @@ class FakeResource:
 
 
 class FakeClient:
-    """Simulates an async client with aclose."""
-
     def __init__(self) -> None:
         self.closed = False
 
@@ -513,7 +504,7 @@ class TestManagedInstances:
 
     @pytest.mark.asyncio
     async def test_on_destroy_before_managed_instances(self) -> None:
-        """on_destroy runs before context managers are closed."""
+
         order: list[str] = []
 
         class TrackedResource:
@@ -558,7 +549,7 @@ class TestForwardRefIndirectCycle:
     def test_indirect_forward_ref_cycle_logs_warning(
         self, caplog: pytest.LogCaptureFixture
     ) -> None:
-        """A -> B (direct), B -> A (forward_ref) — indirect cycle via _has_path."""
+
         mod_a = Module(
             name="a",
             providers=[Provider(provide=TeamReader, use_class=PgTeamReader)],

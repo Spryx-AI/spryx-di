@@ -10,5 +10,5 @@ identity_module = Module(
         Provider(provide=UserRepository, use_class=InMemoryUserRepository, scope=Scope.SINGLETON),
         Provider(provide=UserReader, use_class=InMemoryUserReader, scope=Scope.SINGLETON),
     ],
-    exports=[UserReader],  # Only UserReader is public — UserRepository stays private
+    exports=[UserReader],
 )

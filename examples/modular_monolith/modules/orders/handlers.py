@@ -1,14 +1,3 @@
-"""Order handlers — demonstrate CROSS-MODULE dependency injection.
-
-CreateOrderHandler depends on:
-  - OrderRepository   (from orders module)
-  - UserReader        (from identity module)
-  - ProductReader     (from catalog module)
-
-spryx-di resolves all of these automatically via __init__ type hints.
-No manual wiring. No DI imports in this file.
-"""
-
 from __future__ import annotations
 
 import uuid
@@ -27,8 +16,6 @@ class CreateOrderRequest:
 
 
 class CreateOrderHandler:
-    """Creates an order — auto-wired with deps from 3 different modules."""
-
     def __init__(
         self,
         order_repo: OrderRepository,
@@ -40,13 +27,11 @@ class CreateOrderHandler:
         self._product_reader = product_reader
 
     def handle(self, request: CreateOrderRequest) -> Order:
-        # Resolve user from identity module
         user = self._user_reader.get_by_id(request.user_id)
         if user is None:
             msg = f"User {request.user_id} not found"
             raise ValueError(msg)
 
-        # Resolve products from catalog module
         order_items: list[OrderItem] = []
         for product_id, quantity in request.items:
             product = self._product_reader.get_by_id(product_id)
@@ -62,7 +47,6 @@ class CreateOrderHandler:
                 )
             )
 
-        # Create and persist order
         order = Order(
             id=str(uuid.uuid4()),
             user_id=user.id,
@@ -74,8 +58,6 @@ class CreateOrderHandler:
 
 
 class ListUserOrdersHandler:
-    """Lists orders for a user — depends on orders module only."""
-
     def __init__(self, order_repo: OrderRepository) -> None:
         self._order_repo = order_repo
 

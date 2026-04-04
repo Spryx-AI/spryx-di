@@ -12,7 +12,5 @@ orders_module = Module(
         Provider(provide=OrderRepository, use_class=InMemoryOrderRepository, scope=Scope.SINGLETON),
     ],
     exports=[],
-    imports=[identity_module, catalog_module],  # References, not strings
-    # Handlers (CreateOrderHandler, ListUserOrdersHandler) are NOT registered.
-    # They are auto-wired on resolve — their __init__ type hints are enough.
+    imports=[identity_module, catalog_module],
 )

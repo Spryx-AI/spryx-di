@@ -140,8 +140,6 @@ class TestCircularDependencyDetection:
 
 class TestUnresolvableType:
     def test_missing_dependency(self, container: Container) -> None:
-        # HandlerWithUnresolvableDep -> NeedsDatabase -> Database (not registered)
-        # ServiceNeedingPort requires int (builtin, not auto-wireable, not registered)
         with pytest.raises(UnresolvableTypeError) as exc_info:
             container.resolve(HandlerWithUnresolvableDep)
         assert "int" in str(exc_info.value) or "port" in str(exc_info.value)
@@ -171,7 +169,6 @@ class TestSingletonFactoryCache:
         container.instance(Database, db)
         container.singleton(TeamReader, PgTeamReader)
         container.factory(TeamReader, lambda c: PgTeamReader(c.resolve(Database)))
-        # factory + singleton = result gets cached
         a = container.resolve(TeamReader)
         assert isinstance(a, PgTeamReader)
 

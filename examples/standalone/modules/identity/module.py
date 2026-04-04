@@ -4,8 +4,6 @@ from modules.identity.adapters import InMemoryUserReader, InMemoryUserRepository
 from modules.identity.ports import UserReader, UserRepository
 from spryx_di import Module, Provider, Scope, forward_ref
 
-# identity exporta UserReader (a interface publica)
-# identity importa notifications via forward_ref (ciclo intencional)
 identity_module = Module(
     name="identity",
     providers=[
@@ -13,5 +11,5 @@ identity_module = Module(
         Provider(provide=UserReader, use_class=InMemoryUserReader, scope=Scope.SINGLETON),
     ],
     exports=[UserReader],
-    imports=[forward_ref("notifications")],  # bidirecional — sem circular import
+    imports=[forward_ref("notifications")],
 )

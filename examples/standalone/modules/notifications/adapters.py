@@ -5,8 +5,6 @@ from modules.notifications.ports import NotificationSender
 
 
 class ConsoleNotificationSender(NotificationSender):
-    """Sends notifications to stdout — depends on UserReader from identity module."""
-
     def __init__(self, user_reader: UserReader) -> None:
         self._user_reader = user_reader
 

@@ -4,8 +4,6 @@ from modules.notifications.adapters import ConsoleNotificationSender
 from modules.notifications.ports import NotificationSender
 from spryx_di import Module, Provider, Scope, forward_ref
 
-# notifications exporta NotificationSender
-# notifications importa identity via forward_ref (ciclo intencional)
 notifications_module = Module(
     name="notifications",
     providers=[
@@ -16,5 +14,5 @@ notifications_module = Module(
         ),
     ],
     exports=[NotificationSender],
-    imports=[forward_ref("identity")],  # bidirecional — sem circular import
+    imports=[forward_ref("identity")],
 )

@@ -1,9 +1,3 @@
-"""Catalog handlers — notice: ZERO imports from spryx_di.
-
-These handlers declare their dependencies via __init__ type hints.
-The container auto-wires them at resolution time.
-"""
-
 from __future__ import annotations
 
 from modules.catalog.domain import Product
@@ -11,8 +5,6 @@ from modules.catalog.ports import ProductReader
 
 
 class ListProductsHandler:
-    """Lists all products in the catalog."""
-
     def __init__(self, reader: ProductReader) -> None:
         self._reader = reader
 
@@ -21,8 +13,6 @@ class ListProductsHandler:
 
 
 class GetProductHandler:
-    """Gets a single product by ID."""
-
     def __init__(self, reader: ProductReader) -> None:
         self._reader = reader
 
