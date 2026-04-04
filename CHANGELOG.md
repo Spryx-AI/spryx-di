@@ -1,6 +1,19 @@
 # CHANGELOG
 
 
+## v1.1.1 (2026-04-04)
+
+### Bug Fixes
+
+- **container**: Handle TYPE_CHECKING imports, Optional types, and Protocol/ABC in auto-wiring
+  ([#5](https://github.com/Spryx-AI/spryx-di/pull/5),
+  [`0853999`](https://github.com/Spryx-AI/spryx-di/commit/085399930ca5f6f45b5e5e7dca2bb110419c6129))
+
+- Enrich namespace with registered types when get_type_hints fails - Unwrap X | None to extract the
+  real type before resolving - Skip Protocols and ABCs in auto-wiring instead of trying to
+  instantiate
+
+
 ## v1.1.0 (2026-04-04)
 
 ### Features
