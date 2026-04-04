@@ -109,3 +109,28 @@ class CircularModuleError(Exception):
             f"  {names}\n\n"
             f"  Hint: Break the cycle by extracting shared types into a separate module."
         )
+
+
+class InvalidListenerError(Exception):
+    """Raised when a listener's handler does not extend EventHandler."""
+
+    def __init__(self, handler_name: str) -> None:
+        self.handler_name = handler_name
+        super().__init__(
+            f"'{handler_name}' must extend EventHandler.\n\n"
+            f"  Hint: class {handler_name}(EventHandler[YourEvent]): ..."
+        )
+
+
+class MissingEventBackendError(Exception):
+    """Raised when an async listener is declared but no event_backend is configured."""
+
+    def __init__(self, module_name: str, handler_name: str) -> None:
+        self.module_name = module_name
+        self.handler_name = handler_name
+        super().__init__(
+            f"Module '{module_name}' has async listener '{handler_name}' "
+            f"but no event_backend was configured in ApplicationContext.\n\n"
+            f"  Hint: Pass event_backend=InMemoryEventBackend() or "
+            f"CeleryEventBackend(...) to ApplicationContext."
+        )

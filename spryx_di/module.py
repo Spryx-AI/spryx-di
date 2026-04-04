@@ -2,12 +2,14 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from spryx_di.container import Container
 from spryx_di.errors import (
     CircularModuleError,
     ExportWithoutProviderError,
+    InvalidListenerError,
+    MissingEventBackendError,
     ModuleBoundaryError,
     ModuleNotFoundError,
 )
@@ -21,6 +23,9 @@ from spryx_di.provider import (
     ValueProvider,
 )
 
+if TYPE_CHECKING:
+    from spryx_di.events.listener import EventListener
+
 logger = logging.getLogger("spryx_di")
 
 
@@ -33,6 +38,7 @@ class Module:
     exports: list[type] = field(default_factory=list)
     imports: list[Module | ForwardRef] = field(default_factory=list)
     on_destroy: Any | None = None  # Callable[[Container], Awaitable[None]] | None
+    listeners: list[EventListener[Any]] = field(default_factory=list)
 
 
 def _register_provider(container: Container, provider: Provider) -> None:
@@ -130,9 +136,11 @@ class ApplicationContext:
         self,
         modules: list[Module],
         globals: list[Provider] | None = None,
+        event_backend: Any | None = None,
     ) -> None:
         self._modules = modules
         self._globals = globals or []
+        self._event_backend = event_backend
         self._container = Container()
         self._module_containers: dict[str, Container] = {}
         self._provider_to_module: dict[type, str] = {}
@@ -182,6 +190,7 @@ class ApplicationContext:
         for module in self._modules:
             self._module_containers[module.name] = self._build_module_container(module)
 
+        self._boot_event_system()
         self._collect_managed_instances()
 
     def _build_module_container(self, module: Module) -> Container:
@@ -198,6 +207,38 @@ class ApplicationContext:
                 mod_container.instance(export_type, self._container.resolve(export_type))
 
         return mod_container
+
+    def _boot_event_system(self) -> None:
+        from spryx_di.events.bus import EventBus
+        from spryx_di.events.handler import EventHandler
+        from spryx_di.events.listener import ListenerScope
+
+        all_listeners: list[Any] = []
+        for module in self._modules:
+            for listener in module.listeners:
+                if not issubclass(listener.handler, EventHandler):
+                    raise InvalidListenerError(listener.handler.__name__)
+
+                if listener.scope == ListenerScope.ASYNC and self._event_backend is None:
+                    raise MissingEventBackendError(module.name, listener.handler.__name__)
+
+                all_listeners.append(listener)
+
+        if not all_listeners:
+            return
+
+        event_bus = EventBus(
+            container=self._container,
+            async_backend=self._event_backend,
+        )
+        self._container.instance(EventBus, event_bus)
+
+        for listener in all_listeners:
+            event_bus.register_handler(
+                event_type=listener.event,
+                handler_type=listener.handler,
+                scope=listener.scope,
+            )
 
     def resolve(self, type_: type[Any]) -> Any:
         return self._container.resolve(type_)
