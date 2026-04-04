@@ -1,11 +1,11 @@
 .DEFAULT_GOAL := help
-.PHONY: help install lint format typecheck test check pre-commit clean
+.PHONY: help install lint format typecheck test check pre-commit docs docs-build clean
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}'
 
 install: ## Install dependencies and pre-commit hooks
-	uv sync --extra dev
+	uv sync --extra dev --extra docs
 	uv run pre-commit install
 	uv run pre-commit install --hook-type commit-msg
 
@@ -25,6 +25,12 @@ check: lint typecheck test ## Run lint + typecheck + tests
 
 pre-commit: ## Run all pre-commit hooks
 	uv run pre-commit run --all-files
+
+docs: ## Serve docs with live reload
+	uv run zensical serve
+
+docs-build: ## Build docs for production
+	uv run zensical build
 
 clean: ## Remove caches and build artifacts
 	find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
