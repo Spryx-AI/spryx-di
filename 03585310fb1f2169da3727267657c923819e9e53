@@ -1,0 +1,35 @@
+examples/modular_monolith/api/main.py
+  836bc7718462570d 15
+tests/unit/test_module.py
+  836bc7718462570d 317,348,375,386,395,507,552
+examples/standalone/modules/notifications/module.py
+  836bc7718462570d 17
+examples/modular_monolith/modules/orders/module.py
+  836bc7718462570d 15
+examples/modular_monolith/modules/identity/module.py
+  836bc7718462570d 13
+examples/modular_monolith/modules/catalog/module.py
+  836bc7718462570d 17
+examples/standalone/modules/identity/module.py
+  836bc7718462570d 14
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.5",
+  "base_commit_sha": "03585310fb1f2169da3727267657c923819e9e53",
+  "prompts": {
+    "836bc7718462570d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1da8828a-701e-427b-9ae6-b5eed5fa24d3",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Pedro Cantidio",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 13,
+      "overriden_lines": 0
+    }
+  }
+}
