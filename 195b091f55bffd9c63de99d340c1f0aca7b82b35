@@ -1,0 +1,23 @@
+README.md
+  836bc7718462570d 1-83
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.5",
+  "base_commit_sha": "195b091f55bffd9c63de99d340c1f0aca7b82b35",
+  "prompts": {
+    "836bc7718462570d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1da8828a-701e-427b-9ae6-b5eed5fa24d3",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Pedro Cantidio",
+      "messages": [],
+      "total_additions": 83,
+      "total_deletions": 1,
+      "accepted_lines": 83,
+      "overriden_lines": 0
+    }
+  }
+}
