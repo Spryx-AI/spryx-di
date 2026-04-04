@@ -1,0 +1,78 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
+jobs:
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+    outputs:
+      released: ${{ steps.release.outputs.released }}
+      version: ${{ steps.release.outputs.version }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.RELEASE_PAT }}
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+
+      - name: Run python-semantic-release
+        id: release
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_PAT }}
+        run: |
+          uvx python-semantic-release version --print > /tmp/next_version 2>/tmp/next_version.err || true
+
+          NEXT_VERSION=$(cat /tmp/next_version)
+
+          if [ -n "$NEXT_VERSION" ]; then
+            echo "Next version: $NEXT_VERSION"
+            uvx python-semantic-release version
+            uvx python-semantic-release publish --tag "v$NEXT_VERSION"
+            echo "released=true" >> $GITHUB_OUTPUT
+            echo "version=$NEXT_VERSION" >> $GITHUB_OUTPUT
+          else
+            echo "No release needed"
+            echo "released=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Summary
+        if: always()
+        env:
+          RELEASED: ${{ steps.release.outputs.released }}
+          VERSION: ${{ steps.release.outputs.version }}
+          SHA: ${{ github.sha }}
+          REPO: ${{ github.repository }}
+          SERVER_URL: ${{ github.server_url }}
+        run: |
+          if [ "$RELEASED" = "true" ]; then
+            cat >> "$GITHUB_STEP_SUMMARY" <<EOF
+          ## 🚀 Release v${VERSION}
+
+          | | |
+          |---|---|
+          | **Version** | \`${VERSION}\` |
+          | **Tag** | [\`v${VERSION}\`](${SERVER_URL}/${REPO}/releases/tag/v${VERSION}) |
+          | **Commit** | [\`${SHA:0:8}\`](${SERVER_URL}/${REPO}/commit/${SHA}) |
+          EOF
+          else
+            cat >> "$GITHUB_STEP_SUMMARY" <<EOF
+          ## ⏭️ No release needed
+
+          No \`feat:\`, \`fix:\`, \`perf:\`, or \`refactor:\` commits found since last release.
+          EOF
+          fi
