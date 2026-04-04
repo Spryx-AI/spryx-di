@@ -1,6 +1,26 @@
 # CHANGELOG
 
 
+## v1.1.0 (2026-04-04)
+
+### Features
+
+- **module**: Support re-exports in module exports
+  ([#4](https://github.com/Spryx-AI/spryx-di/pull/4),
+  [`8fa8067`](https://github.com/Spryx-AI/spryx-di/commit/8fa8067ab83d95b5721a7aec41be3fd2ba74c158))
+
+* feat(module): support re-exports in module exports
+
+Allow modules to re-export types or entire modules from their imports, enabling sub-module
+  composition where a parent module aggregates children and selectively exposes their exports to the
+  outside world.
+
+* fix(module): guard against circular re-exports and fix type annotation
+
+Add visited set to _compute_effective_exports to prevent infinite recursion on circular re-exports.
+  Use TYPE_CHECKING guard for precise Module type annotation in ExportWithoutProviderError.
+
+
 ## v1.0.0 (2026-04-04)
 
 ### Bug Fixes
