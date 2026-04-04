@@ -1,0 +1,25 @@
+tests/unit/test_autowiring_fixes.py
+  6579bdc061eeab1f 1-203
+spryx_di/container.py
+  6579bdc061eeab1f 5-6,8,127-134,149-164,167-171,182-202
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.5",
+  "base_commit_sha": "929bd1da741c83bf06409b0c9823d4504993c72b",
+  "prompts": {
+    "6579bdc061eeab1f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f635993d-8d5f-4981-94ff-3aa26531ee61",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Pedro Cantidio",
+      "messages": [],
+      "total_additions": 359,
+      "total_deletions": 97,
+      "accepted_lines": 257,
+      "overriden_lines": 0
+    }
+  }
+}
