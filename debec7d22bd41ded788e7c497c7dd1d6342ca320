@@ -1,0 +1,31 @@
+openspec/changes/add-docs/proposal.md
+  836bc7718462570d 1-32
+openspec/changes/add-docs/specs/docs-content/spec.md
+  836bc7718462570d 1-50
+openspec/changes/add-docs/specs/docs-setup/spec.md
+  836bc7718462570d 1-29
+openspec/changes/add-docs/design.md
+  836bc7718462570d 1-35
+openspec/changes/add-docs/tasks.md
+  836bc7718462570d 1-53
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.5",
+  "base_commit_sha": "debec7d22bd41ded788e7c497c7dd1d6342ca320",
+  "prompts": {
+    "836bc7718462570d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1da8828a-701e-427b-9ae6-b5eed5fa24d3",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Pedro Cantidio",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 199,
+      "overriden_lines": 0
+    }
+  }
+}
