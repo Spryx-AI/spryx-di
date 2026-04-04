@@ -108,7 +108,8 @@ class TestRecursiveResolution:
         container.register(TeamReader, PgTeamReader)
         handler = container.resolve(ListHandler)
         assert handler.repo.db is db
-        assert handler.reader.db is db  # type: ignore[attr-defined]
+        assert isinstance(handler.reader, PgTeamReader)
+        assert handler.reader.db is db
 
 
 class TestDefaultValueFallback:

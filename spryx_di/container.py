@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import inspect
 import logging
-from typing import Any, TypeVar, overload
+import typing
+from typing import Any, TypeVar, cast
 
 from spryx_di.errors import (
     CircularDependencyError,
@@ -62,51 +63,52 @@ class Container:
         else:
             self._instances[type_] = implementation
 
-    @overload
-    def resolve(self, type_: type[T]) -> T: ...
+    def resolve(self, type_: type[T]) -> T:
+        return cast(T, self._resolve_untyped(type_, frozenset()))
 
-    @overload
-    def resolve(self, type_: type[T], _resolving: frozenset[type]) -> T: ...
-
-    def resolve(self, type_: type[T], _resolving: frozenset[type] | None = None) -> T:  # noqa: C901
-        resolving = _resolving or frozenset()
-
+    def _resolve_untyped(self, type_: type, resolving: frozenset[type]) -> object:
         if type_ in self._instances:
-            return self._instances[type_]  # type: ignore[return-value]
+            return self._instances[type_]
 
         if type_ in self._factories:
             result = self._factories[type_](self)
             if type_ in self._singletons:
                 self._singleton_cache[type_] = result
-            return result  # type: ignore[return-value]
+            return result
 
         if type_ in self._singleton_cache:
-            return self._singleton_cache[type_]  # type: ignore[return-value]
+            return self._singleton_cache[type_]
 
-        is_singleton = type_ in self._singletons
-        if is_singleton:
-            impl = self._singletons[type_]
-        elif type_ in self._transients:
-            impl = self._transients[type_]
-        elif self._is_auto_wireable(type_):
-            impl = type_
-        else:
+        impl = self._find_implementation(type_)
+        if impl is None:
             raise UnresolvableTypeError(type_, "", type_)
 
         if impl in resolving:
-            chain = [*self._build_chain(resolving, impl), impl]
-            raise CircularDependencyError(chain)
+            raise CircularDependencyError([*resolving, impl])
 
         obj = self._auto_wire(type_, impl, resolving | {impl})
 
-        if is_singleton:
+        if type_ in self._singletons:
             self._singleton_cache[type_] = obj
 
-        return obj  # type: ignore[return-value]
+        return obj
 
-    def _auto_wire(self, requested: type, impl: type, resolving: frozenset[type]) -> Any:
+    def _find_implementation(self, type_: type) -> type | None:
+        if type_ in self._singletons:
+            return self._singletons[type_]
+        if type_ in self._transients:
+            return self._transients[type_]
+        if self._is_auto_wireable(type_):
+            return type_
+        return None
+
+    def _auto_wire(self, requested: type, impl: type, resolving: frozenset[type]) -> object:
         hints = self._get_init_hints(impl)
-        params = inspect.signature(impl.__init__).parameters  # type: ignore[misc]
+        init = getattr(impl, "__init__", None)
+        if init is None:
+            return impl()
+
+        params = inspect.signature(init).parameters
 
         kwargs: dict[str, Any] = {}
         for name, param in params.items():
@@ -127,7 +129,7 @@ class Container:
                 raise TypeHintRequiredError(impl, name)
 
             try:
-                kwargs[name] = self.resolve(hint, resolving)
+                kwargs[name] = self._resolve_untyped(hint, resolving)
             except (UnresolvableTypeError, TypeHintRequiredError):
                 if param.default is not inspect.Parameter.empty:
                     continue
@@ -139,34 +141,25 @@ class Container:
     def _is_auto_wireable(type_: type) -> bool:
         return type_.__module__ != "builtins"
 
-    def _get_init_hints(self, cls: type) -> dict[str, Any]:
-        import typing
-
+    def _get_init_hints(self, cls: type) -> dict[str, type]:
+        init = getattr(cls, "__init__", None)
+        if init is None:
+            return {}
         try:
-            raw = typing.get_type_hints(cls.__init__)  # type: ignore[misc]
-            return {k: v for k, v in raw.items() if k != "return"}
-        except Exception:
-            pass
-
-        try:
-            raw = inspect.get_annotations(cls.__init__, eval_str=True)  # type: ignore[misc]
-            return {k: v for k, v in raw.items() if k != "return"}
+            raw = typing.get_type_hints(init)
+            raw.pop("return", None)
+            return raw
         except Exception:
             return {}
-
-    def _build_chain(self, resolving: frozenset[type], target: type) -> list[type]:
-        return list(resolving) if target in resolving else [*resolving]
 
     def _warn_duplicate(self, type_: type) -> None:
         if self.has(type_):
             logger.warning("Overwriting registration for '%s'", type_.__name__)
 
     def on_shutdown(self, hook: Any) -> None:
-        """Register an async or sync callable to run on shutdown."""
         self._shutdown_hooks.append(hook)
 
     async def shutdown(self) -> None:
-        """Run all shutdown hooks in reverse registration order."""
         import asyncio
 
         for hook in reversed(self._shutdown_hooks):
@@ -183,8 +176,6 @@ class Container:
 
 
 class ScopedContainer(Container):
-    """A scoped container that inherits registrations from a parent."""
-
     def __init__(self, parent: Container) -> None:
         super().__init__()
         self._parent = parent
@@ -201,44 +192,34 @@ class ScopedContainer(Container):
             or type_ in self._singleton_cache
         )
 
-    @overload
-    def resolve(self, type_: type[T]) -> T: ...
+    def resolve(self, type_: type[T]) -> T:
+        return cast(T, self._resolve_untyped(type_, frozenset()))
 
-    @overload
-    def resolve(self, type_: type[T], _resolving: frozenset[type]) -> T: ...
-
-    def resolve(self, type_: type[T], _resolving: frozenset[type] | None = None) -> T:  # noqa: C901
-        resolving = _resolving or frozenset()
-
+    def _resolve_untyped(self, type_: type, resolving: frozenset[type]) -> object:
         if self._is_local(type_):
-            return super().resolve(type_, resolving)
+            return super()._resolve_untyped(type_, resolving)
+        return self._resolve_from_parent(type_, resolving)
 
+    def _resolve_from_parent(self, type_: type, resolving: frozenset[type]) -> object:
         if type_ in self._parent._instances:
-            return self._parent._instances[type_]  # type: ignore[return-value]
+            return self._parent._instances[type_]
 
         if type_ in self._parent._factories:
-            return self._parent._factories[type_](self)  # type: ignore[return-value]
+            return self._parent._factories[type_](self)
 
         if type_ in self._parent._singleton_cache:
-            return self._parent._singleton_cache[type_]  # type: ignore[return-value]
+            return self._parent._singleton_cache[type_]
 
-        is_singleton = type_ in self._parent._singletons
-        if is_singleton:
-            impl = self._parent._singletons[type_]
-        elif type_ in self._parent._transients:
-            impl = self._parent._transients[type_]
-        elif self._is_auto_wireable(type_):
-            impl = type_
-        else:
+        impl = self._parent._find_implementation(type_)
+        if impl is None:
             raise UnresolvableTypeError(type_, "", type_)
 
         if impl in resolving:
-            chain = [*self._build_chain(resolving, impl), impl]
-            raise CircularDependencyError(chain)
+            raise CircularDependencyError([*resolving, impl])
 
         obj = self._auto_wire(type_, impl, resolving | {impl})
 
-        if is_singleton:
+        if type_ in self._parent._singletons:
             self._parent._singleton_cache[type_] = obj
 
-        return obj  # type: ignore[return-value]
+        return obj
