@@ -9,6 +9,7 @@ from spryx_di.errors import (
     MissingEventBackendError,
     ModuleBoundaryError,
     ModuleNotFoundError,
+    SerializationError,
     TypeHintRequiredError,
     UnresolvableTypeError,
 )
@@ -53,6 +54,7 @@ __all__ = [
     "Module",
     "ModuleBoundaryError",
     "ModuleNotFoundError",
+    "SerializationError",
     "Provider",
     "ScopedContainer",
     "Scope",

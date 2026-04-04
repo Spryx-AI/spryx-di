@@ -134,3 +134,15 @@ class MissingEventBackendError(Exception):
             f"  Hint: Pass event_backend=InMemoryEventBackend() or "
             f"CeleryEventBackend(...) to ApplicationContext."
         )
+
+
+class SerializationError(Exception):
+    """Raised when an event cannot be serialized."""
+
+    def __init__(self, type_name: str) -> None:
+        self.type_name = type_name
+        super().__init__(
+            f"Cannot serialize event of type '{type_name}'.\n\n"
+            f"  Supported: dataclass, Pydantic BaseModel, dict, "
+            f"or any class with to_dict()."
+        )

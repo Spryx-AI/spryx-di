@@ -18,7 +18,7 @@ def extract_event_type(handler_cls: type) -> type:
         if origin is EventHandler:
             args = get_args(base)
             if args:
-                return args[0]  # type: ignore[no-any-return]
+                return args[0]
     msg = (
         f"Cannot extract event type from '{handler_cls.__name__}'. "
         f"Ensure it directly extends EventHandler[SomeEvent]."

@@ -1,19 +1,21 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
+from spryx_di.errors import MissingEventBackendError
 from spryx_di.events.backend import AsyncEventBackend, EventMetadata
+from spryx_di.events.handler import EventHandler
 from spryx_di.events.listener import ListenerScope
+from spryx_di.events.serialization import serialize_event
 
 if TYPE_CHECKING:
     from spryx_di.container import Container
-    from spryx_di.events.handler import EventHandler
 
 
 @dataclass(frozen=True)
 class _RegisteredHandler:
-    handler_type: type[EventHandler[Any]]
+    handler_type: type[EventHandler]
     scope: ListenerScope
 
 
@@ -32,7 +34,7 @@ class EventBus:
     def register_handler(
         self,
         event_type: type,
-        handler_type: type[EventHandler[Any]],
+        handler_type: type[EventHandler],
         scope: ListenerScope,
     ) -> None:
         self._handlers.setdefault(event_type, []).append(
@@ -45,9 +47,12 @@ class EventBus:
             if registered.scope == ListenerScope.SYNC:
                 handler = self._container.resolve(registered.handler_type)
                 await handler.handle(event)
-            elif self._async_backend is not None:
+            else:
+                if self._async_backend is None:
+                    raise MissingEventBackendError("(runtime)", registered.handler_type.__name__)
+                payload = serialize_event(event)
                 metadata = EventMetadata(
                     event_type=event_type.__name__,
                     handler_type=registered.handler_type.__name__,
                 )
-                await self._async_backend.dispatch(event, metadata)
+                await self._async_backend.dispatch(payload, metadata)

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Protocol
+from typing import Any, Protocol
 
 
 @dataclass(frozen=True)
@@ -11,4 +11,4 @@ class EventMetadata:
 
 
 class AsyncEventBackend(Protocol):
-    async def dispatch(self, event: object, metadata: EventMetadata) -> None: ...
+    async def dispatch(self, payload: dict[str, Any], metadata: EventMetadata) -> None: ...

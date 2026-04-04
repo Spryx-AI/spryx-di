@@ -15,10 +15,12 @@ from spryx_di import (
     ListenerScope,
     MissingEventBackendError,
     Module,
+    SerializationError,
     ValueProvider,
 )
 from spryx_di.events.backends.memory import InMemoryEventBackend
 from spryx_di.events.handler import extract_event_type
+from spryx_di.events.serialization import serialize_event
 
 
 @dataclass(frozen=True)
@@ -95,6 +97,34 @@ class TestEventHandler:
             extract_event_type(BadHandler)
 
 
+class TestSerialization:
+    def test_serialize_dataclass(self) -> None:
+        event = OrderPlaced(order_id="1", amount=10.0)
+        assert serialize_event(event) == {"order_id": "1", "amount": 10.0}
+
+    def test_serialize_dict_passthrough(self) -> None:
+        event = {"event_type": "health_check", "status": "ok"}
+        assert serialize_event(event) is event
+
+    def test_serialize_to_dict_method(self) -> None:
+        class Custom:
+            def to_dict(self) -> dict[str, object]:
+                return {"key": "value"}
+
+        assert serialize_event(Custom()) == {"key": "value"}
+
+    def test_serialize_model_dump(self) -> None:
+        class FakeModel:
+            def model_dump(self) -> dict[str, object]:
+                return {"field": 42}
+
+        assert serialize_event(FakeModel()) == {"field": 42}
+
+    def test_serialize_unsupported_raises(self) -> None:
+        with pytest.raises(SerializationError, match="Cannot serialize"):
+            serialize_event(object())
+
+
 class TestEventBusSyncDispatch:
     def test_publish_to_single_sync_handler(self) -> None:
         notifications = NotificationService()
@@ -155,7 +185,7 @@ class TestEventBusSyncDispatch:
 
 
 class TestEventBusAsyncDispatch:
-    def test_async_handler_dispatches_to_backend(self) -> None:
+    def test_async_handler_dispatches_serialized_payload(self) -> None:
         backend = InMemoryEventBackend()
         ctx = ApplicationContext(
             modules=[
@@ -177,8 +207,8 @@ class TestEventBusAsyncDispatch:
         _run(bus.publish(OrderPlaced(order_id="ord_async", amount=25.0)))
 
         assert len(backend.dispatched) == 1
-        event, metadata = backend.dispatched[0]
-        assert isinstance(event, OrderPlaced)
+        payload, metadata = backend.dispatched[0]
+        assert payload == {"order_id": "ord_async", "amount": 25.0}
         assert metadata == EventMetadata(
             event_type="OrderPlaced",
             handler_type="OnOrderPlaced",
@@ -219,34 +249,34 @@ class TestEventBusAsyncDispatch:
 
 
 class TestInMemoryEventBackend:
-    def test_capture_dispatched_event(self) -> None:
+    def test_capture_dispatched_payload(self) -> None:
         backend = InMemoryEventBackend()
-        event = OrderPlaced(order_id="1", amount=10.0)
+        payload = {"order_id": "1", "amount": 10.0}
         metadata = EventMetadata(event_type="OrderPlaced", handler_type="OnOrderPlaced")
-        _run(backend.dispatch(event, metadata))
+        _run(backend.dispatch(payload, metadata))
         assert len(backend.dispatched) == 1
-        assert backend.dispatched[0] == (event, metadata)
+        assert backend.dispatched[0] == (payload, metadata)
 
     def test_assert_published_passes(self) -> None:
         backend = InMemoryEventBackend()
-        event = OrderPlaced(order_id="ord_1", amount=10.0)
+        payload = {"order_id": "ord_1", "amount": 10.0}
         metadata = EventMetadata(event_type="OrderPlaced", handler_type="OnOrderPlaced")
-        _run(backend.dispatch(event, metadata))
-        backend.assert_published(OrderPlaced, order_id="ord_1")
+        _run(backend.dispatch(payload, metadata))
+        backend.assert_published("OrderPlaced", order_id="ord_1")
 
     def test_assert_published_fails(self) -> None:
         backend = InMemoryEventBackend()
-        event = OrderPlaced(order_id="ord_1", amount=10.0)
+        payload = {"order_id": "ord_1", "amount": 10.0}
         metadata = EventMetadata(event_type="OrderPlaced", handler_type="OnOrderPlaced")
-        _run(backend.dispatch(event, metadata))
-        with pytest.raises(AssertionError, match="No OrderPlaced event"):
-            backend.assert_published(OrderPlaced, order_id="ord_99")
+        _run(backend.dispatch(payload, metadata))
+        with pytest.raises(AssertionError, match="No 'OrderPlaced' event"):
+            backend.assert_published("OrderPlaced", order_id="ord_99")
 
     def test_clear(self) -> None:
         backend = InMemoryEventBackend()
-        event = OrderPlaced(order_id="1", amount=10.0)
+        payload = {"order_id": "1", "amount": 10.0}
         metadata = EventMetadata(event_type="OrderPlaced", handler_type="OnOrderPlaced")
-        _run(backend.dispatch(event, metadata))
+        _run(backend.dispatch(payload, metadata))
         backend.clear()
         assert backend.dispatched == []
 
@@ -381,7 +411,35 @@ class TestIntegration:
 
         _run(bus.publish(OrderCancelled(order_id="int_2")))
         assert len(backend.dispatched) == 1
-        backend.assert_published(OrderCancelled, order_id="int_2")
+        backend.assert_published("OrderCancelled", order_id="int_2")
+
+    def test_registries_populated_at_boot(self) -> None:
+        backend = InMemoryEventBackend()
+        ctx = ApplicationContext(
+            modules=[
+                Module(
+                    name="orders",
+                    providers=[
+                        ValueProvider(provide=NotificationService, use_value=NotificationService()),
+                        OnOrderPlaced,
+                        OnOrderCancelled,
+                    ],
+                    listeners=[
+                        EventListener(event=OrderPlaced, handler=OnOrderPlaced),
+                        EventListener(event=OrderCancelled, handler=OnOrderCancelled),
+                    ],
+                ),
+            ],
+            event_backend=backend,
+        )
+        assert ctx.event_registry == {
+            "OrderPlaced": OrderPlaced,
+            "OrderCancelled": OrderCancelled,
+        }
+        assert ctx.handler_registry == {
+            "OnOrderPlaced": OnOrderPlaced,
+            "OnOrderCancelled": OnOrderCancelled,
+        }
 
     def test_event_bus_is_singleton(self) -> None:
         ctx = ApplicationContext(

@@ -1,22 +1,40 @@
 from __future__ import annotations
 
-from dataclasses import asdict
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from spryx_di.events.backend import EventMetadata
+
+if TYPE_CHECKING:
+    from celery import Celery
+
+    from spryx_di.module import ApplicationContext
 
 
 class CeleryEventBackend:
     def __init__(
         self,
-        celery_app: Any,
+        celery_app: Celery,
         task_name: str = "spryx_di.handle_event",
+        default_queue: str = "events",
     ) -> None:
         self._app = celery_app
         self._task_name = task_name
+        self._default_queue = default_queue
 
-    async def dispatch(self, event: object, metadata: EventMetadata) -> None:
-        payload = self._serialize(event)
+    def register_worker(self, app_context: ApplicationContext) -> None:
+        ctx = app_context
+
+        @self._app.task(name=self._task_name)
+        def handle_event(event_type: str, handler_type: str, payload: dict[str, Any]) -> None:
+            import asyncio
+
+            event_cls = ctx.event_registry[event_type]
+            handler_cls = ctx.handler_registry[handler_type]
+            event = event_cls(**payload)
+            handler = ctx.resolve(handler_cls)
+            asyncio.run(handler.handle(event))
+
+    async def dispatch(self, payload: dict[str, Any], metadata: EventMetadata) -> None:
         self._app.send_task(
             self._task_name,
             kwargs={
@@ -24,8 +42,5 @@ class CeleryEventBackend:
                 "handler_type": metadata.handler_type,
                 "payload": payload,
             },
+            queue=f"{self._default_queue}.{metadata.event_type}",
         )
-
-    @staticmethod
-    def _serialize(event: object) -> dict[str, Any]:
-        return asdict(event)  # type: ignore[arg-type]
