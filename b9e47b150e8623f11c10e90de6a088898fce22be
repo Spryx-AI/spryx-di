@@ -1,0 +1,43 @@
+spryx_di/module.py
+  ba24de08febef92f 5,11-12,26-28,41,139,143,193,211-242
+tests/unit/test_events.py
+  ba24de08febef92f 1-400
+spryx_di/events/backends/celery.py
+  ba24de08febef92f 1-31
+spryx_di/events/__init__.py
+  ba24de08febef92f 1-13
+spryx_di/events/handler.py
+  ba24de08febef92f 1-26
+spryx_di/errors.py
+  ba24de08febef92f 112-136
+spryx_di/events/backend.py
+  ba24de08febef92f 1-14
+spryx_di/events/bus.py
+  ba24de08febef92f 1-53
+spryx_di/events/listener.py
+  ba24de08febef92f 1-21
+spryx_di/events/backends/memory.py
+  ba24de08febef92f 1-24
+spryx_di/__init__.py
+  ba24de08febef92f 8-9,15-22,37,42-45,50-52
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.5",
+  "base_commit_sha": "b9e47b150e8623f11c10e90de6a088898fce22be",
+  "prompts": {
+    "ba24de08febef92f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "572d719e-2520-4d45-b5f7-994afb5d8e2c",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Pedro Cantidio",
+      "messages": [],
+      "total_additions": 1148,
+      "total_deletions": 143,
+      "accepted_lines": 1006,
+      "overriden_lines": 0
+    }
+  }
+}
