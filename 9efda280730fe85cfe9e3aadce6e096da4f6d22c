@@ -1,0 +1,123 @@
+examples/modular_monolith/modules/orders/domain.py
+  836bc7718462570d 1-24
+pyproject.toml
+  836bc7718462570d 1-88
+spryx_di/__init__.py
+  836bc7718462570d 6-9,13-14,17,19,21-26,28,31
+examples/standalone/app/main.py
+  836bc7718462570d 1-22,24-49,52-78,80-127
+tests/unit/test_container.py
+  836bc7718462570d 1-8,10-156
+tests/conftest.py
+  836bc7718462570d 1,4-8
+spryx_di/container.py
+  836bc7718462570d 27,71,100,115,152-153,158,164-177,210,239
+.github/workflows/ci.yml
+  836bc7718462570d 1-49
+examples/standalone/README.md
+  836bc7718462570d 1-22
+examples/standalone/modules/notifications/ports.py
+  836bc7718462570d 1-8
+spryx_di/module.py
+  836bc7718462570d 3-4,8-14,16,18-21,24-180,182-185,187-201,203-205,207-243
+tests/unit/test_scoping.py
+  836bc7718462570d 1-77
+tests/unit/test_settings.py
+  836bc7718462570d 1-38
+examples/modular_monolith/modules/identity/ports.py
+  836bc7718462570d 1-25
+examples/modular_monolith/api/main.py
+  836bc7718462570d 1-16,20-43
+examples/modular_monolith/modules/catalog/module.py
+  836bc7718462570d 1-18
+examples/modular_monolith/modules/orders/handlers.py
+  836bc7718462570d 1-83
+spryx_di/testing/override.py
+  836bc7718462570d 9,11,14,44
+examples/modular_monolith/modules/catalog/domain.py
+  836bc7718462570d 1-12
+examples/standalone/modules/orders/adapters.py
+  836bc7718462570d 1-14
+examples/standalone/modules/orders/handlers.py
+  836bc7718462570d 1-54
+examples/standalone/modules/notifications/adapters.py
+  836bc7718462570d 1-16
+examples/standalone/modules/identity/adapters.py
+  836bc7718462570d 1-22
+tests/unit/test_module.py
+  836bc7718462570d 1-3,6-18,20-604
+examples/modular_monolith/modules/orders/module.py
+  836bc7718462570d 1-18
+tests/integration/test_fastapi_integration.py
+  836bc7718462570d 1-95
+examples/modular_monolith/modules/catalog/handlers.py
+  836bc7718462570d 1-30
+examples/standalone/modules/identity/ports.py
+  836bc7718462570d 1-24
+.github/workflows/release.yml
+  836bc7718462570d 1-78
+examples/modular_monolith/modules/catalog/adapters.py
+  836bc7718462570d 1-26
+examples/standalone/modules/orders/ports.py
+  836bc7718462570d 1-20
+tests/unit/test_resolution.py
+  836bc7718462570d 1-11,13-192
+examples/modular_monolith/modules/catalog/ports.py
+  836bc7718462570d 1-25
+examples/modular_monolith/api/settings.py
+  836bc7718462570d 1-10
+.commitlintrc.json
+  836bc7718462570d 1-3
+examples/modular_monolith/README.md
+  836bc7718462570d 1-65
+examples/modular_monolith/modules/identity/domain.py
+  836bc7718462570d 1-10
+Makefile
+  836bc7718462570d 1-32
+examples/modular_monolith/modules/identity/adapters.py
+  836bc7718462570d 1-31
+spryx_di/provider.py
+  836bc7718462570d 1-56
+examples/modular_monolith/api/routes.py
+  836bc7718462570d 1-5,8-49
+examples/standalone/modules/notifications/module.py
+  836bc7718462570d 1-20
+examples/standalone/modules/orders/module.py
+  836bc7718462570d 1-18
+examples/standalone/modules/identity/module.py
+  836bc7718462570d 1-17
+spryx_di/errors.py
+  836bc7718462570d 50-111
+.pre-commit-config.yaml
+  836bc7718462570d 1-52
+.claude/commands/commit.md
+  836bc7718462570d 1-55
+examples/modular_monolith/modules/orders/adapters.py
+  836bc7718462570d 1-18
+tests/unit/test_testing.py
+  836bc7718462570d 1-39
+examples/modular_monolith/modules/orders/ports.py
+  836bc7718462570d 1-16
+examples/modular_monolith/modules/identity/module.py
+  836bc7718462570d 1-14
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.5",
+  "base_commit_sha": "9efda280730fe85cfe9e3aadce6e096da4f6d22c",
+  "prompts": {
+    "836bc7718462570d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1da8828a-701e-427b-9ae6-b5eed5fa24d3",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Pedro Cantidio",
+      "messages": [],
+      "total_additions": 4245,
+      "total_deletions": 486,
+      "accepted_lines": 2820,
+      "overriden_lines": 6
+    }
+  }
+}
