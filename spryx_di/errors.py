@@ -80,7 +80,7 @@ class ExportWithoutProviderError(Exception):
         super().__init__(
             f"Module '{module_name}' exports '{type_.__name__}' "
             f"but it is not in its providers.\n\n"
-            f"  Hint: Add a Provider(provide={type_.__name__}, use_class=...) "
+            f"  Hint: Add a ClassProvider(provide={type_.__name__}, use_class=...) "
             f"to the providers list, or remove {type_.__name__} from exports."
         )
 

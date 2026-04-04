@@ -11,14 +11,26 @@ from spryx_di.errors import (
     UnresolvableTypeError,
 )
 from spryx_di.module import ApplicationContext, Module
-from spryx_di.provider import ForwardRef, Provider, Scope, forward_ref
+from spryx_di.provider import (
+    ClassProvider,
+    ExistingProvider,
+    FactoryProvider,
+    ForwardRef,
+    Provider,
+    Scope,
+    ValueProvider,
+    forward_ref,
+)
 
 __all__ = [
     "ApplicationContext",
     "CircularDependencyError",
     "CircularModuleError",
+    "ClassProvider",
     "Container",
+    "ExistingProvider",
     "ExportWithoutProviderError",
+    "FactoryProvider",
     "ForwardRef",
     "Module",
     "ModuleBoundaryError",
@@ -28,5 +40,6 @@ __all__ = [
     "Scope",
     "TypeHintRequiredError",
     "UnresolvableTypeError",
+    "ValueProvider",
     "forward_ref",
 ]

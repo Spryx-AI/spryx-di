@@ -27,8 +27,8 @@ Instances registered with `use_value` that implement `__aexit__`, `aclose`, or `
 ctx = ApplicationContext(
     modules=[...],
     globals=[
-        Provider(provide=AsyncEngine, use_value=engine),     # has .dispose()
-        Provider(provide=Redis, use_value=redis_client),     # has .aclose()
+        ValueProvider(provide=AsyncEngine, use_value=engine),     # has .dispose()
+        ValueProvider(provide=Redis, use_value=redis_client),     # has .aclose()
     ],
 )
 ```

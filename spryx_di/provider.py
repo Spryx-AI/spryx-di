@@ -1,10 +1,8 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
 from typing import Any
-
-_MISSING = object()
 
 
 @dataclass(frozen=True)
@@ -26,31 +24,37 @@ class Scope(Enum):
 
 
 @dataclass(frozen=True)
-class Provider:
-    """Describes how to provide a dependency via use_class, use_factory, or use_value."""
+class ClassProvider:
+    """Provide a dependency via auto-wired class instantiation."""
 
     provide: type
-    use_class: type | None = None
-    use_factory: Any | None = None  # Callable[[Container], Any]
-    use_value: Any = field(default=_MISSING)
+    use_class: type
     scope: Scope = Scope.SINGLETON
 
-    def __post_init__(self) -> None:
-        sources = [
-            self.use_class is not None,
-            self.use_factory is not None,
-            self.use_value is not _MISSING,
-        ]
-        count = sum(sources)
-        if count == 0:
-            msg = (
-                f"Provider for '{self.provide.__name__}' must specify exactly one of: "
-                f"use_class, use_factory, or use_value"
-            )
-            raise ValueError(msg)
-        if count > 1:
-            msg = (
-                f"Provider for '{self.provide.__name__}' must specify exactly one of: "
-                f"use_class, use_factory, or use_value (got {count})"
-            )
-            raise ValueError(msg)
+
+@dataclass(frozen=True)
+class FactoryProvider:
+    """Provide a dependency via a factory callable."""
+
+    provide: type
+    use_factory: Any  # Callable[[Container], Any]
+    scope: Scope = Scope.SINGLETON
+
+
+@dataclass(frozen=True)
+class ValueProvider:
+    """Provide a pre-instantiated value."""
+
+    provide: type
+    use_value: Any
+
+
+@dataclass(frozen=True)
+class ExistingProvider:
+    """Alias: when provide is requested, resolve use_existing instead."""
+
+    provide: type
+    use_existing: type
+
+
+Provider = ClassProvider | FactoryProvider | ValueProvider | ExistingProvider

@@ -1,42 +1,56 @@
 # Providers
 
-A `Provider` describes how to create an instance of a type.
+Providers describe how to create an instance of a type. Each variant is a separate class — the type checker enforces correct usage.
 
-## use_class
+```python
+from spryx_di import ClassProvider, FactoryProvider, ValueProvider, ExistingProvider
+```
+
+## ClassProvider
 
 Map an interface to a concrete class. The container auto-wires the class's `__init__`.
 
 ```python
-Provider(provide=TeamReader, use_class=PgTeamReader)
+ClassProvider(provide=TeamReader, use_class=PgTeamReader)
 ```
 
-## use_factory
+## FactoryProvider
 
 Provide a callable that receives the container. Use for conditional logic or complex setup.
 
 ```python
-Provider(
+FactoryProvider(
     provide=BillingGateway,
     use_factory=lambda c: StripeBillingGateway(c.resolve(Config)),
 )
 ```
 
-## use_value
+## ValueProvider
 
 Register a pre-built instance.
 
 ```python
-Provider(provide=Database, use_value=my_db_instance)
+ValueProvider(provide=Database, use_value=my_db_instance)
 ```
+
+## ExistingProvider
+
+Alias one type to another. When `provide` is requested, the container resolves `use_existing` instead.
+
+```python
+ExistingProvider(provide=AssetService, use_existing=AssetServiceImpl)
+```
+
+Eliminates boilerplate factory functions for port → implementation mappings.
 
 ## Scope
 
-Default is `Scope.SINGLETON` — one instance for the container's lifetime.
+`ClassProvider` and `FactoryProvider` accept a `scope` parameter. Default is `Scope.SINGLETON`.
 
 ```python
 from spryx_di import Scope
 
-Provider(provide=Handler, use_class=Handler, scope=Scope.TRANSIENT)
+ClassProvider(provide=Handler, use_class=Handler, scope=Scope.TRANSIENT)
 ```
 
 | Scope | Behavior |
@@ -44,9 +58,17 @@ Provider(provide=Handler, use_class=Handler, scope=Scope.TRANSIENT)
 | `SINGLETON` (default) | One instance per container |
 | `TRANSIENT` | New instance every `resolve()` |
 
+## Union Type
+
+All four are unified under `Provider`:
+
+```python
+Provider = ClassProvider | FactoryProvider | ValueProvider | ExistingProvider
+```
+
 ## Bare Type Shorthand
 
-Pass a class directly in `providers` as shorthand for `Provider(provide=T, use_class=T)`:
+Pass a class directly in `providers` as shorthand for `ClassProvider(provide=T, use_class=T)`:
 
 ```python
 Module(

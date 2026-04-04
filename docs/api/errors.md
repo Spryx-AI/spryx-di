@@ -49,7 +49,7 @@ A module exports a type that isn't in its providers list.
 ```
 Module 'identity' exports 'TeamReader' but it is not in its providers.
 
-  Hint: Add a Provider(provide=TeamReader, use_class=...) to the providers list,
+  Hint: Add a ClassProvider(provide=TeamReader, use_class=...) to the providers list,
   or remove TeamReader from exports.
 ```
 

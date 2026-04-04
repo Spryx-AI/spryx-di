@@ -3,7 +3,7 @@
 A working example in under 50 lines. Copy, paste, run.
 
 ```python
-from spryx_di import ApplicationContext, Module, ModuleBoundaryError, Provider
+from spryx_di import ApplicationContext, ClassProvider, Module, ModuleBoundaryError
 
 
 # --- Ports (interfaces) ---
@@ -36,8 +36,8 @@ class PgUserRepository(UserRepository):
 identity_module = Module(
     name="identity",
     providers=[
-        Provider(provide=UserRepository, use_class=PgUserRepository),
-        Provider(provide=UserReader, use_class=PgUserReader),
+        ClassProvider(provide=UserRepository, use_class=PgUserRepository),
+        ClassProvider(provide=UserReader, use_class=PgUserReader),
     ],
     exports=[UserReader],  # UserRepository stays private
 )

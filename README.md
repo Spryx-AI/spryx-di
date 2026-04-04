@@ -22,13 +22,13 @@ pip install spryx-di
 ## Quick Example
 
 ```python
-from spryx_di import Module, Provider, ApplicationContext
+from spryx_di import ClassProvider, Module, ApplicationContext
 
 identity_module = Module(
     name="identity",
     providers=[
-        Provider(provide=UserRepository, use_class=PgUserRepository),
-        Provider(provide=UserReader, use_class=PgUserReader),
+        ClassProvider(provide=UserRepository, use_class=PgUserRepository),
+        ClassProvider(provide=UserReader, use_class=PgUserReader),
     ],
     exports=[UserReader],
 )
@@ -36,7 +36,7 @@ identity_module = Module(
 orders_module = Module(
     name="orders",
     providers=[
-        Provider(provide=OrderRepository, use_class=PgOrderRepository),
+        ClassProvider(provide=OrderRepository, use_class=PgOrderRepository),
     ],
     imports=[identity_module],
 )
@@ -58,7 +58,7 @@ class CreateOrderHandler:
 
 | Feature | Description |
 |---|---|
-| `Provider` | `use_class`, `use_factory`, `use_value` with `Scope.SINGLETON` (default) or `TRANSIENT` |
+| `ClassProvider`, `FactoryProvider`, `ValueProvider`, `ExistingProvider` | Typed providers — `use_class`, `use_factory`, `use_value`, `use_existing` with `Scope.SINGLETON` (default) or `TRANSIENT` |
 | `Module` | Declarative `providers`, `exports`, `imports`, `on_destroy` |
 | `ApplicationContext` | Composes modules with boundary enforcement and boot-time validation |
 | `forward_ref()` | Circular module dependencies without Python import errors |
