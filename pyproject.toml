@@ -1,0 +1,95 @@
+[project]
+name = "spryx-di"
+version = "0.1.0"
+description = "Lightweight type-based dependency injection for Python modular monoliths"
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.11"
+authors = [{ name = "Spryx", email = "dev@spryx.ai" }]
+keywords = ["dependency-injection", "di", "container", "fastapi", "modular-monolith"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Framework :: FastAPI",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Libraries",
+    "Typing :: Typed",
+]
+
+dependencies = []
+
+[project.optional-dependencies]
+fastapi = ["fastapi==0.135.3"]
+settings = ["pydantic-settings==2.13.1"]
+docs = ["zensical"]
+dev = [
+    "pytest==9.0.2",
+    "pytest-asyncio==1.3.0",
+    "fastapi==0.135.3",
+    "httpx==0.28.1",
+    "pydantic-settings==2.13.1",
+    "ty==0.0.28",
+    "pytest-cov==6.2.1",
+    "ruff==0.15.9",
+    "pre-commit==4.5.1",
+    "python-semantic-release==10.5.3",
+    "build==1.2.2",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["spryx_di"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["spryx_di"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["B008"]
+"examples/**" = ["B008"]
+
+[tool.semantic_release]
+version_toml = ["pyproject.toml:project.version"]
+branch = "main"
+build_command = "python -m build"
+commit_message = "chore(release): {version}"
+
+[tool.semantic_release.remote]
+type = "github"
+token = { env = "GH_TOKEN" }
+
+[tool.semantic_release.publish]
+upload_to_vcs_release = true
+dist_glob_patterns = ["dist/*"]
+
+[tool.semantic_release.commit_parser_options]
+patch_tags = ["fix", "perf", "refactor"]
+
+[tool.coverage.run]
+source = ["spryx_di"]
+omit = ["spryx_di/ext/*"]
+
+[tool.coverage.report]
+fail_under = 90
+show_missing = true
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "@overload",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]

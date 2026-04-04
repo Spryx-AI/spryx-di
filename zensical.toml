@@ -1,0 +1,60 @@
+[project]
+site_name = "spryx-di"
+site_description = "Lightweight dependency injection for Python modular monoliths. NestJS-inspired modules with type-based auto-wiring."
+site_author = "Spryx"
+site_url = "https://spryx-ai.github.io/spryx-di"
+repo_url = "https://github.com/spryx-ai/spryx-di"
+repo_name = "spryx-ai/spryx-di"
+copyright = "Copyright &copy; 2026 Spryx"
+
+[project.theme]
+language = "en"
+
+[project.theme.palette]
+scheme = "default"
+primary = "indigo"
+accent = "indigo"
+
+nav = [
+    { "Home" = "index.md" },
+    { "Getting Started" = [
+        { "Installation" = "getting-started/installation.md" },
+        { "Quick Start" = "getting-started/quickstart.md" },
+    ]},
+    { "Core Concepts" = [
+        { "Container" = "concepts/container.md" },
+        { "Providers" = "concepts/providers.md" },
+        { "Modules" = "concepts/modules.md" },
+        { "Module Boundaries" = "concepts/boundaries.md" },
+        { "Scopes" = "concepts/scopes.md" },
+        { "Auto-Wiring" = "concepts/auto-wiring.md" },
+        { "Lifecycle" = "concepts/lifecycle.md" },
+    ]},
+    { "Integrations" = [
+        { "FastAPI" = "integrations/fastapi.md" },
+    ]},
+    { "Guides" = [
+        { "Modular Monolith" = "guides/modular-monolith.md" },
+        { "Testing" = "guides/testing.md" },
+        { "Migration from Manual DI" = "guides/migration.md" },
+        { "Circular Dependencies" = "guides/circular-deps.md" },
+    ]},
+    { "API Reference" = [
+        { "Container" = "api/container.md" },
+        { "Module" = "api/module.md" },
+        { "Provider" = "api/provider.md" },
+        { "Errors" = "api/errors.md" },
+        { "FastAPI Integration" = "api/fastapi.md" },
+        { "Testing Utilities" = "api/testing.md" },
+    ]},
+    { "Changelog" = "changelog.md" },
+    { "Contributing" = "contributing.md" },
+]
+
+[[project.extra.social]]
+icon = "fontawesome/brands/github"
+link = "https://github.com/spryx-ai/spryx-di"
+
+[[project.extra.social]]
+icon = "fontawesome/brands/python"
+link = "https://pypi.org/project/spryx-di/"
