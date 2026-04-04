@@ -1,0 +1,31 @@
+docs/concepts/modules.md
+  e4ed8980eb5b64a1 53
+spryx_di/module.py
+  e4ed8980eb5b64a1 42,44-45
+docs/guides/modular-monolith.md
+  e4ed8980eb5b64a1 69-70
+tests/unit/test_module.py
+  e4ed8980eb5b64a1 295-330
+spryx_di/container.py
+  e4ed8980eb5b64a1 73-75,210-211
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.5",
+  "base_commit_sha": "edfb2138b73747b565a58cff435107acef5d87f3",
+  "prompts": {
+    "e4ed8980eb5b64a1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "09ca8192-1f81-4ccc-ab8d-8813d1b363db",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Pedro Cantidio",
+      "messages": [],
+      "total_additions": 48,
+      "total_deletions": 8,
+      "accepted_lines": 48,
+      "overriden_lines": 0
+    }
+  }
+}
