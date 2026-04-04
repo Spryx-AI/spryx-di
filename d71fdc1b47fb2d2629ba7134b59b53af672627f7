@@ -1,0 +1,39 @@
+openspec/changes/typed-event-bus/specs/event-listener/spec.md
+  ba24de08febef92f 1-30
+openspec/changes/typed-event-bus/tasks.md
+  ba24de08febef92f 1-49
+openspec/changes/typed-event-bus/proposal.md
+  ba24de08febef92f 1-33
+openspec/changes/typed-event-bus/design.md
+  ba24de08febef92f 1-72
+openspec/changes/typed-event-bus/specs/event-bus/spec.md
+  ba24de08febef92f 1-37
+openspec/changes/typed-event-bus/specs/async-event-backend/spec.md
+  ba24de08febef92f 1-41
+openspec/changes/typed-event-bus/specs/event-handler/spec.md
+  ba24de08febef92f 1-19
+openspec/changes/typed-event-bus/specs/module-system/spec.md
+  ba24de08febef92f 1-25
+openspec/changes/typed-event-bus/specs/event-boot-validation/spec.md
+  ba24de08febef92f 1-33
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.5",
+  "base_commit_sha": "d71fdc1b47fb2d2629ba7134b59b53af672627f7",
+  "prompts": {
+    "ba24de08febef92f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "572d719e-2520-4d45-b5f7-994afb5d8e2c",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Pedro Cantidio",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 339,
+      "overriden_lines": 0
+    }
+  }
+}
