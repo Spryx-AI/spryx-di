@@ -63,16 +63,11 @@ known-first-party = ["spryx_di"]
 [tool.semantic_release]
 version_toml = ["pyproject.toml:project.version"]
 branch = "main"
-build_command = "python -m build"
 commit_message = "chore(release): {version}"
 
 [tool.semantic_release.remote]
 type = "github"
 token = { env = "GH_TOKEN" }
-
-[tool.semantic_release.publish]
-upload_to_vcs_release = true
-dist_glob_patterns = ["dist/*"]
 
 [tool.semantic_release.commit_parser_options]
 patch_tags = ["fix", "perf", "refactor"]
