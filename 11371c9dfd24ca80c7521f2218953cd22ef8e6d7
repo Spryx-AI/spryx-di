@@ -1,0 +1,25 @@
+.github/workflows/release.yml
+  836bc7718462570d 9-10,23,25-26,28-32,34-38
+pyproject.toml
+  836bc7718462570d 38,64-74
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.5",
+  "base_commit_sha": "11371c9dfd24ca80c7521f2218953cd22ef8e6d7",
+  "prompts": {
+    "836bc7718462570d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1da8828a-701e-427b-9ae6-b5eed5fa24d3",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Pedro Cantidio",
+      "messages": [],
+      "total_additions": 78,
+      "total_deletions": 183,
+      "accepted_lines": 45,
+      "overriden_lines": 0
+    }
+  }
+}
