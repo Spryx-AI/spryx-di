@@ -252,8 +252,10 @@ class ApplicationContext:
                 handler_type=listener.handler,
                 scope=listener.scope,
             )
-            self._event_registry[listener.event.__name__] = listener.event
-            self._handler_registry[listener.handler.__name__] = listener.handler
+            event_key = f"{listener.event.__module__}.{listener.event.__qualname__}"
+            handler_key = f"{listener.handler.__module__}.{listener.handler.__qualname__}"
+            self._event_registry[event_key] = listener.event
+            self._handler_registry[handler_key] = listener.handler
 
     def resolve(self, type_: type[T]) -> T:
         return self._container.resolve(type_)

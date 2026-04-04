@@ -52,7 +52,7 @@ class EventBus:
                     raise MissingEventBackendError("(runtime)", registered.handler_type.__name__)
                 payload = serialize_event(event)
                 metadata = EventMetadata(
-                    event_type=event_type.__name__,
-                    handler_type=registered.handler_type.__name__,
+                    event_type=f"{event_type.__module__}.{event_type.__qualname__}",
+                    handler_type=f"{registered.handler_type.__module__}.{registered.handler_type.__qualname__}",
                 )
                 await self._async_backend.dispatch(payload, metadata)

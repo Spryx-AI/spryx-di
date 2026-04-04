@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from typing import TYPE_CHECKING, Any
 
 from spryx_di.events.backend import EventMetadata
@@ -35,7 +36,8 @@ class CeleryEventBackend:
             asyncio.run(handler.handle(event))
 
     async def dispatch(self, payload: dict[str, Any], metadata: EventMetadata) -> None:
-        self._app.send_task(
+        await asyncio.to_thread(
+            self._app.send_task,
             self._task_name,
             kwargs={
                 "event_type": metadata.event_type,

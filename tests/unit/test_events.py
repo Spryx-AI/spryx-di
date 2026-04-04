@@ -67,7 +67,7 @@ class OnOrderCancelled(EventHandler[OrderCancelled]):
 
 
 def _run(coro):  # type: ignore[no-untyped-def]
-    return asyncio.get_event_loop().run_until_complete(coro)
+    return asyncio.run(coro)
 
 
 class TestEventHandler:
@@ -209,9 +209,11 @@ class TestEventBusAsyncDispatch:
         assert len(backend.dispatched) == 1
         payload, metadata = backend.dispatched[0]
         assert payload == {"order_id": "ord_async", "amount": 25.0}
+        qualified_event = f"{OrderPlaced.__module__}.{OrderPlaced.__qualname__}"
+        qualified_handler = f"{OnOrderPlaced.__module__}.{OnOrderPlaced.__qualname__}"
         assert metadata == EventMetadata(
-            event_type="OrderPlaced",
-            handler_type="OnOrderPlaced",
+            event_type=qualified_event,
+            handler_type=qualified_handler,
         )
 
     def test_mixed_sync_and_async_handlers(self) -> None:
@@ -269,7 +271,7 @@ class TestInMemoryEventBackend:
         payload = {"order_id": "ord_1", "amount": 10.0}
         metadata = EventMetadata(event_type="OrderPlaced", handler_type="OnOrderPlaced")
         _run(backend.dispatch(payload, metadata))
-        with pytest.raises(AssertionError, match="No 'OrderPlaced' event"):
+        with pytest.raises(AssertionError, match="No 'OrderPlaced'"):
             backend.assert_published("OrderPlaced", order_id="ord_99")
 
     def test_clear(self) -> None:
@@ -411,7 +413,8 @@ class TestIntegration:
 
         _run(bus.publish(OrderCancelled(order_id="int_2")))
         assert len(backend.dispatched) == 1
-        backend.assert_published("OrderCancelled", order_id="int_2")
+        cancelled_key = f"{OrderCancelled.__module__}.{OrderCancelled.__qualname__}"
+        backend.assert_published(cancelled_key, order_id="int_2")
 
     def test_registries_populated_at_boot(self) -> None:
         backend = InMemoryEventBackend()
@@ -432,13 +435,16 @@ class TestIntegration:
             ],
             event_backend=backend,
         )
+        def _qn(cls: type) -> str:
+            return f"{cls.__module__}.{cls.__qualname__}"
+
         assert ctx.event_registry == {
-            "OrderPlaced": OrderPlaced,
-            "OrderCancelled": OrderCancelled,
+            _qn(OrderPlaced): OrderPlaced,
+            _qn(OrderCancelled): OrderCancelled,
         }
         assert ctx.handler_registry == {
-            "OnOrderPlaced": OnOrderPlaced,
-            "OnOrderCancelled": OnOrderCancelled,
+            _qn(OnOrderPlaced): OnOrderPlaced,
+            _qn(OnOrderCancelled): OnOrderCancelled,
         }
 
     def test_event_bus_is_singleton(self) -> None:
