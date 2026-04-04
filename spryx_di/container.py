@@ -70,14 +70,14 @@ class Container:
         if type_ in self._instances:
             return self._instances[type_]
 
+        if type_ in self._singleton_cache:
+            return self._singleton_cache[type_]
+
         if type_ in self._factories:
             result = self._factories[type_](self)
             if type_ in self._singletons:
                 self._singleton_cache[type_] = result
             return result
-
-        if type_ in self._singleton_cache:
-            return self._singleton_cache[type_]
 
         impl = self._find_implementation(type_)
         if impl is None:
@@ -204,11 +204,11 @@ class ScopedContainer(Container):
         if type_ in self._parent._instances:
             return self._parent._instances[type_]
 
-        if type_ in self._parent._factories:
-            return self._parent._factories[type_](self)
-
         if type_ in self._parent._singleton_cache:
             return self._parent._singleton_cache[type_]
+
+        if type_ in self._parent._factories:
+            return self._parent._factories[type_](self)
 
         impl = self._parent._find_implementation(type_)
         if impl is None:

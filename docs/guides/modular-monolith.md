@@ -66,6 +66,8 @@ One file that wires everything:
 
 ```python
 # app/main.py
+from spryx_di import ApplicationContext, ValueProvider
+
 ctx = ApplicationContext(
     modules=[identity_module, orders_module],
     globals=[ValueProvider(provide=Database, use_value=db)],

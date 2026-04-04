@@ -39,8 +39,10 @@ def _register_provider(container: Container, provider: Provider) -> None:
     match provider:
         case ValueProvider(provide=iface, use_value=val):
             container.instance(iface, val)
-        case FactoryProvider(provide=iface, use_factory=fn):
+        case FactoryProvider(provide=iface, use_factory=fn, scope=scope):
             container.factory(iface, fn)
+            if scope == Scope.SINGLETON:
+                container._singletons[iface] = iface
         case ExistingProvider(provide=iface, use_existing=target):
             container.factory(iface, lambda c, _t=target: c.resolve(_t))
         case ClassProvider(provide=iface, use_class=impl, scope=scope):

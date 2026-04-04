@@ -50,7 +50,7 @@ orders_module = Module(
 `ApplicationContext` wires all modules together:
 
 ```python
-from spryx_di import ApplicationContext
+from spryx_di import ApplicationContext, ValueProvider
 
 ctx = ApplicationContext(
     modules=[identity_module, orders_module],

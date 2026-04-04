@@ -292,6 +292,42 @@ class TestUseFactory:
         assert isinstance(reader, PgTeamReader)
         assert reader.db is db
 
+    def test_factory_singleton_caches_result(self) -> None:
+        call_count = 0
+
+        def counting_factory(c: object) -> Database:
+            nonlocal call_count
+            call_count += 1
+            return Database()
+
+        mod = Module(
+            name="test",
+            providers=[
+                FactoryProvider(provide=Database, use_factory=counting_factory),
+            ],
+        )
+        ctx = ApplicationContext(modules=[mod])
+        a = ctx.resolve(Database)
+        b = ctx.resolve(Database)
+        assert a is b
+        assert call_count == 1
+
+    def test_factory_transient_creates_new_instances(self) -> None:
+        mod = Module(
+            name="test",
+            providers=[
+                FactoryProvider(
+                    provide=Database,
+                    use_factory=lambda c: Database(),
+                    scope=Scope.TRANSIENT,
+                ),
+            ],
+        )
+        ctx = ApplicationContext(modules=[mod])
+        a = ctx.resolve(Database)
+        b = ctx.resolve(Database)
+        assert a is not b
+
 
 class TestUseExisting:
     def test_use_existing_resolves_to_target(self) -> None:
