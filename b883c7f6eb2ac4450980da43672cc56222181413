@@ -1,0 +1,63 @@
+examples/event_bus/modules/orders/ports.py
+  ba24de08febef92f 1-19
+pyproject.toml
+  ba24de08febef92f 25,83
+spryx_di/errors.py
+  ba24de08febef92f 137-148
+examples/event_bus/app/main.py
+  ba24de08febef92f 1-74
+examples/event_bus/modules/orders/handlers.py
+  ba24de08febef92f 1-35
+examples/event_bus/modules/billing/handlers.py
+  ba24de08febef92f 1-12
+spryx_di/events/__init__.py
+  ba24de08febef92f 5,14
+examples/event_bus/modules/orders/module.py
+  ba24de08febef92f 1-13
+examples/event_bus/modules/orders/adapters.py
+  ba24de08febef92f 1-11
+examples/event_bus/modules/billing/module.py
+  ba24de08febef92f 1-13
+spryx_di/events/serialization.py
+  ba24de08febef92f 1-22
+examples/event_bus/modules/orders/events.py
+  ba24de08febef92f 1-13
+spryx_di/module.py
+  ba24de08febef92f 4,6,8,28-29,34,36-38,48-49,58-65,67,150,161-163,229,255-256,258,261,286-293,303,317-326,333
+examples/event_bus/modules/notifications/handlers.py
+  ba24de08febef92f 1-12
+spryx_di/events/backends/memory.py
+  ba24de08febef92f 3-4,12,14-15,17,19-21,23
+spryx_di/events/bus.py
+  ba24de08febef92f 4,6,8,10,18,37,50-53,58
+spryx_di/events/backend.py
+  ba24de08febef92f 4,14
+tests/unit/test_events.py
+  ba24de08febef92f 18,23,100-127,188,210-211,252,254,256,258,262,264-265,269,271-273,277,279,414,416-442
+spryx_di/events/backends/celery.py
+  ba24de08febef92f 3,7-8,10-11,16,18,22-25,27-35,37,45
+examples/event_bus/modules/notifications/module.py
+  ba24de08febef92f 1-17
+spryx_di/__init__.py
+  ba24de08febef92f 12,57
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.5",
+  "base_commit_sha": "b883c7f6eb2ac4450980da43672cc56222181413",
+  "prompts": {
+    "ba24de08febef92f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "572d719e-2520-4d45-b5f7-994afb5d8e2c",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Pedro Cantidio",
+      "messages": [],
+      "total_additions": 450,
+      "total_deletions": 79,
+      "accepted_lines": 771,
+      "overriden_lines": 0
+    }
+  }
+}
