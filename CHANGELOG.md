@@ -1,6 +1,46 @@
 # CHANGELOG
 
 
+## v1.0.0 (2026-04-04)
+
+### Bug Fixes
+
+- **provider**: Cache singleton factory results on resolve
+  ([`edfb213`](https://github.com/Spryx-AI/spryx-di/commit/edfb2138b73747b565a58cff435107acef5d87f3))
+
+FactoryProvider.scope was silently ignored — factories always created new instances regardless of
+  scope setting. Fix by checking the singleton cache before the factory dict in
+  Container._resolve_untyped.
+
+Also fix missing ValueProvider imports in docs snippets.
+
+- **provider**: Memoize singleton factory instead of hijacking _singletons
+  ([`ccb89f9`](https://github.com/Spryx-AI/spryx-di/commit/ccb89f983504ffda426fe6cb090f52e30e899ee0))
+
+Replace direct write to container._singletons with a memoizing wrapper around the factory callable.
+  Each container gets its own cache, preserving correct per-container singleton semantics.
+
+### Features
+
+- **provider**: Replace Provider class with typed variants
+  ([`3a74adc`](https://github.com/Spryx-AI/spryx-di/commit/3a74adcd83160c213e3fc97ad0900e9205c86cc1))
+
+Replace Provider with a union of typed dataclasses: ClassProvider, FactoryProvider, ValueProvider,
+  ExistingProvider.
+
+Each variant has only its relevant fields. The type checker enforces correct usage at construction
+  time.
+
+Adds ExistingProvider for aliasing types without boilerplate: ExistingProvider(provide=AssetService,
+  use_existing=Impl)
+
+BREAKING CHANGE: Provider is now a union type, not a class
+
+### Breaking Changes
+
+- **provider**: Provider is now a union type, not a class
+
+
 ## v0.1.0 (2026-04-04)
 
 ### Chores
