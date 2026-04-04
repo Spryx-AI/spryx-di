@@ -30,7 +30,7 @@ class Module:
 
     name: str
     providers: list[Provider | type] = field(default_factory=list)
-    exports: list[type] = field(default_factory=list)
+    exports: list[type | Module] = field(default_factory=list)
     imports: list[Module | ForwardRef] = field(default_factory=list)
     on_destroy: Any | None = None  # Callable[[Container], Awaitable[None]] | None
 
@@ -123,6 +123,21 @@ def _has_path(
     return False
 
 
+def _compute_effective_exports(module: Module, _visited: set[int] | None = None) -> set[type]:
+    if _visited is None:
+        _visited = set()
+    if id(module) in _visited:
+        return set()
+    _visited.add(id(module))
+    result: set[type] = set()
+    for item in module.exports:
+        if isinstance(item, Module):
+            result |= _compute_effective_exports(item, _visited)
+        else:
+            result.add(item)
+    return result
+
+
 class ApplicationContext:
     """Composes modules with boundary enforcement."""
 
@@ -147,12 +162,6 @@ class ApplicationContext:
         module_ids = {id(m) for m in self._modules}
 
         for module in self._modules:
-            provider_types = {_normalize_provider(p).provide for p in module.providers}
-            for export in module.exports:
-                if export not in provider_types:
-                    raise ExportWithoutProviderError(module.name, export)
-
-        for module in self._modules:
             resolved: list[Module] = []
             for imp in module.imports:
                 if isinstance(imp, ForwardRef):
@@ -167,13 +176,27 @@ class ApplicationContext:
                     resolved.append(imp)
             self._resolved_imports[module.name] = resolved
 
+        for module in self._modules:
+            provider_types = {_normalize_provider(p).provide for p in module.providers}
+            imported_modules = {id(imp) for imp in self._resolved_imports[module.name]}
+            imported_export_types: set[type] = set()
+            for imp in self._resolved_imports[module.name]:
+                imported_export_types |= _compute_effective_exports(imp)
+
+            for export in module.exports:
+                if isinstance(export, Module):
+                    if id(export) not in imported_modules:
+                        raise ExportWithoutProviderError(module.name, export)
+                elif export not in provider_types and export not in imported_export_types:
+                    raise ExportWithoutProviderError(module.name, export)
+
         _detect_circular_modules(self._modules, self._resolved_imports, self._forward_ref_edges)
 
         for item in self._globals:
             _register_provider(self._container, _normalize_provider(item))
 
         for module in self._modules:
-            self._exported_types[module.name] = set(module.exports)
+            self._exported_types[module.name] = _compute_effective_exports(module)
             for item in module.providers:
                 provider = _normalize_provider(item)
                 _register_provider(self._container, provider)
