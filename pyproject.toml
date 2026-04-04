@@ -35,6 +35,7 @@ dev = [
     "ruff==0.15.9",
     "pre-commit==4.5.1",
     "python-semantic-release==10.5.3",
+    "build==1.2.2",
 ]
 
 [build-system]
@@ -59,13 +60,18 @@ known-first-party = ["spryx_di"]
 "examples/**" = ["B008"]
 
 [tool.semantic_release]
-tag_format = "v{version}"
 version_toml = ["pyproject.toml:project.version"]
-build_command = """
-uv lock --upgrade-package spryx-di
-git add uv.lock
-"""
-commit_message = "chore(release): v{version} [skip ci]"
+branch = "main"
+build_command = "python -m build"
+commit_message = "chore(release): {version}"
+
+[tool.semantic_release.remote]
+type = "github"
+token = { env = "GH_TOKEN" }
+
+[tool.semantic_release.publish]
+upload_to_vcs_release = true
+dist_glob_patterns = ["dist/*"]
 
 [tool.semantic_release.commit_parser_options]
 patch_tags = ["fix", "perf", "refactor"]
