@@ -7,7 +7,7 @@ Scopes control the lifecycle of resolved instances.
 One instance per container lifetime. All calls to `resolve()` return the same object.
 
 ```python
-Provider(provide=UserReader, use_class=PgUserReader)  # singleton by default
+ClassProvider(provide=UserReader, use_class=PgUserReader)  # singleton by default
 ```
 
 Use for: repositories, readers, database pools, HTTP clients.
@@ -17,9 +17,9 @@ Use for: repositories, readers, database pools, HTTP clients.
 New instance every `resolve()` call.
 
 ```python
-from spryx_di import Scope
+from spryx_di import ClassProvider, Scope
 
-Provider(provide=RequestHandler, use_class=RequestHandler, scope=Scope.TRANSIENT)
+ClassProvider(provide=RequestHandler, use_class=RequestHandler, scope=Scope.TRANSIENT)
 ```
 
 Use for: stateful handlers, one-off processors.

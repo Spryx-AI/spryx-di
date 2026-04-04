@@ -11,13 +11,13 @@ Lightweight dependency injection for Python modular monoliths.
 ## Quick Example
 
 ```python
-from spryx_di import Module, Provider, ApplicationContext
+from spryx_di import ClassProvider, Module, ApplicationContext
 
 identity_module = Module(
     name="identity",
     providers=[
-        Provider(provide=UserRepository, use_class=PgUserRepository),
-        Provider(provide=UserReader, use_class=PgUserReader),
+        ClassProvider(provide=UserRepository, use_class=PgUserRepository),
+        ClassProvider(provide=UserReader, use_class=PgUserReader),
     ],
     exports=[UserReader],
 )

@@ -72,6 +72,17 @@ token = { env = "GH_TOKEN" }
 [tool.semantic_release.commit_parser_options]
 patch_tags = ["fix", "perf", "refactor"]
 
+[tool.ty.src]
+exclude = ["examples/"]
+
+[tool.ty.rules]
+unused-type-ignore-comment = "ignore"
+
+[[tool.ty.overrides]]
+include = ["spryx_di/ext/*", "tests/*"]
+[tool.ty.overrides.rules]
+unresolved-import = "ignore"
+
 [tool.coverage.run]
 source = ["spryx_di"]
 omit = ["spryx_di/ext/*"]

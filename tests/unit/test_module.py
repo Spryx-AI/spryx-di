@@ -7,12 +7,15 @@ import pytest
 from spryx_di import (
     ApplicationContext,
     CircularModuleError,
+    ClassProvider,
+    ExistingProvider,
     ExportWithoutProviderError,
+    FactoryProvider,
     Module,
     ModuleBoundaryError,
     ModuleNotFoundError,
-    Provider,
     Scope,
+    ValueProvider,
     forward_ref,
 )
 
@@ -69,7 +72,7 @@ class TestModuleDefinition:
         module = Module(
             name="identity",
             providers=[
-                Provider(provide=TeamReader, use_class=PgTeamReader, scope=Scope.SINGLETON),
+                ClassProvider(provide=TeamReader, use_class=PgTeamReader, scope=Scope.SINGLETON),
             ],
             exports=[TeamReader],
         )
@@ -87,27 +90,27 @@ class TestModuleDefinition:
 
 class TestProvider:
     def test_use_class(self) -> None:
-        p = Provider(provide=TeamReader, use_class=PgTeamReader)
+        p = ClassProvider(provide=TeamReader, use_class=PgTeamReader)
         assert p.provide == TeamReader
         assert p.use_class == PgTeamReader
         assert p.scope == Scope.SINGLETON
 
     def test_use_value(self) -> None:
         db = Database()
-        p = Provider(provide=Database, use_value=db)
+        p = ValueProvider(provide=Database, use_value=db)
         assert p.provide == Database
 
     def test_use_factory(self) -> None:
-        p = Provider(provide=TeamReader, use_factory=lambda c: PgTeamReader(c.resolve(Database)))
+        p = FactoryProvider(
+            provide=TeamReader,
+            use_factory=lambda c: PgTeamReader(c.resolve(Database)),
+        )
         assert p.provide == TeamReader
 
-    def test_no_source_raises(self) -> None:
-        with pytest.raises(ValueError, match="must specify exactly one"):
-            Provider(provide=TeamReader)
-
-    def test_multiple_sources_raises(self) -> None:
-        with pytest.raises(ValueError, match="must specify exactly one"):
-            Provider(provide=TeamReader, use_class=PgTeamReader, use_value="fake")
+    def test_use_existing(self) -> None:
+        p = ExistingProvider(provide=TeamReader, use_existing=PgTeamReader)
+        assert p.provide == TeamReader
+        assert p.use_existing == PgTeamReader
 
 
 class TestApplicationContext:
@@ -115,16 +118,16 @@ class TestApplicationContext:
         identity = Module(
             name="identity",
             providers=[
-                Provider(provide=TeamRepository, use_class=PgTeamRepository, scope=Scope.SINGLETON),
-                Provider(provide=TeamReader, use_class=PgTeamReader, scope=Scope.SINGLETON),
-                Provider(provide=UserReader, use_class=PgUserReader, scope=Scope.SINGLETON),
+                ClassProvider(provide=TeamRepository, use_class=PgTeamRepository),
+                ClassProvider(provide=TeamReader, use_class=PgTeamReader),
+                ClassProvider(provide=UserReader, use_class=PgUserReader),
             ],
             exports=[TeamReader, UserReader],
         )
         db = Database()
         ctx = ApplicationContext(
             modules=[identity],
-            globals=[Provider(provide=Database, use_value=db)],
+            globals=[ValueProvider(provide=Database, use_value=db)],
         )
 
         reader = ctx.resolve(TeamReader)
@@ -134,14 +137,14 @@ class TestApplicationContext:
         identity = Module(
             name="identity",
             providers=[
-                Provider(provide=TeamReader, use_class=PgTeamReader, scope=Scope.SINGLETON),
+                ClassProvider(provide=TeamReader, use_class=PgTeamReader),
             ],
             exports=[TeamReader],
         )
         db = Database()
         ctx = ApplicationContext(
             modules=[identity],
-            globals=[Provider(provide=Database, use_value=db)],
+            globals=[ValueProvider(provide=Database, use_value=db)],
         )
         reader = ctx.resolve(TeamReader)
         assert isinstance(reader, PgTeamReader)
@@ -150,18 +153,14 @@ class TestApplicationContext:
         identity = Module(
             name="identity",
             providers=[
-                Provider(provide=TeamReader, use_class=PgTeamReader, scope=Scope.SINGLETON),
+                ClassProvider(provide=TeamReader, use_class=PgTeamReader),
             ],
             exports=[TeamReader],
         )
         conversations = Module(
             name="conversations",
             providers=[
-                Provider(
-                    provide=ConversationRepo,
-                    use_class=PgConversationRepo,
-                    scope=Scope.SINGLETON,
-                ),
+                ClassProvider(provide=ConversationRepo, use_class=PgConversationRepo),
             ],
             exports=[],
             imports=[identity],
@@ -169,7 +168,7 @@ class TestApplicationContext:
         db = Database()
         ctx = ApplicationContext(
             modules=[identity, conversations],
-            globals=[Provider(provide=Database, use_value=db)],
+            globals=[ValueProvider(provide=Database, use_value=db)],
         )
 
         handler = ctx.resolve_within(conversations, ListHandler)
@@ -178,14 +177,12 @@ class TestApplicationContext:
     def test_last_module_provider_wins(self) -> None:
         mod_a = Module(
             name="a",
-            providers=[Provider(provide=UserReader, use_class=PgUserReader, scope=Scope.SINGLETON)],
+            providers=[ClassProvider(provide=UserReader, use_class=PgUserReader)],
             exports=[UserReader],
         )
         mod_b = Module(
             name="b",
-            providers=[
-                Provider(provide=UserReader, use_class=HttpUserReader, scope=Scope.SINGLETON)
-            ],
+            providers=[ClassProvider(provide=UserReader, use_class=HttpUserReader)],
             exports=[UserReader],
         )
         ctx = ApplicationContext(modules=[mod_a, mod_b])
@@ -197,30 +194,22 @@ class TestModuleBoundary:
         identity = Module(
             name="identity",
             providers=[
-                Provider(
-                    provide=TeamRepository,
-                    use_class=PgTeamRepository,
-                    scope=Scope.SINGLETON,
-                ),
-                Provider(provide=TeamReader, use_class=PgTeamReader, scope=Scope.SINGLETON),
+                ClassProvider(provide=TeamRepository, use_class=PgTeamRepository),
+                ClassProvider(provide=TeamReader, use_class=PgTeamReader),
             ],
             exports=[TeamReader],
         )
         conversations = Module(
             name="conversations",
             providers=[
-                Provider(
-                    provide=ConversationRepo,
-                    use_class=PgConversationRepo,
-                    scope=Scope.SINGLETON,
-                ),
+                ClassProvider(provide=ConversationRepo, use_class=PgConversationRepo),
             ],
             imports=[identity],
         )
         db = Database()
         ctx = ApplicationContext(
             modules=[identity, conversations],
-            globals=[Provider(provide=Database, use_value=db)],
+            globals=[ValueProvider(provide=Database, use_value=db)],
         )
 
         with pytest.raises(ModuleBoundaryError) as exc_info:
@@ -288,7 +277,7 @@ class TestUseFactory:
         identity = Module(
             name="identity",
             providers=[
-                Provider(
+                FactoryProvider(
                     provide=TeamReader,
                     use_factory=lambda c: PgTeamReader(c.resolve(Database)),
                 ),
@@ -297,11 +286,105 @@ class TestUseFactory:
         )
         ctx = ApplicationContext(
             modules=[identity],
-            globals=[Provider(provide=Database, use_value=db)],
+            globals=[ValueProvider(provide=Database, use_value=db)],
         )
         reader = ctx.resolve(TeamReader)
         assert isinstance(reader, PgTeamReader)
         assert reader.db is db
+
+    def test_factory_singleton_caches_result(self) -> None:
+        call_count = 0
+
+        def counting_factory(c: object) -> Database:
+            nonlocal call_count
+            call_count += 1
+            return Database()
+
+        mod = Module(
+            name="test",
+            providers=[
+                FactoryProvider(provide=Database, use_factory=counting_factory),
+            ],
+        )
+        ctx = ApplicationContext(modules=[mod])
+        a = ctx.resolve(Database)
+        b = ctx.resolve(Database)
+        assert a is b
+        assert call_count == 1
+
+    def test_factory_transient_creates_new_instances(self) -> None:
+        mod = Module(
+            name="test",
+            providers=[
+                FactoryProvider(
+                    provide=Database,
+                    use_factory=lambda c: Database(),
+                    scope=Scope.TRANSIENT,
+                ),
+            ],
+        )
+        ctx = ApplicationContext(modules=[mod])
+        a = ctx.resolve(Database)
+        b = ctx.resolve(Database)
+        assert a is not b
+
+
+class TestUseExisting:
+    def test_use_existing_resolves_to_target(self) -> None:
+        db = Database()
+        identity = Module(
+            name="identity",
+            providers=[
+                ClassProvider(provide=TeamReader, use_class=PgTeamReader),
+                ExistingProvider(provide=UserReader, use_existing=TeamReader),
+            ],
+            exports=[TeamReader, UserReader],
+        )
+        ctx = ApplicationContext(
+            modules=[identity],
+            globals=[ValueProvider(provide=Database, use_value=db)],
+        )
+        reader = ctx.resolve(TeamReader)
+        alias = ctx.resolve(UserReader)
+        assert isinstance(reader, PgTeamReader)
+        assert alias is reader
+
+    def test_use_existing_returns_same_singleton(self) -> None:
+        db = Database()
+        identity = Module(
+            name="identity",
+            providers=[
+                ClassProvider(provide=TeamReader, use_class=PgTeamReader),
+                ExistingProvider(provide=UserReader, use_existing=TeamReader),
+            ],
+        )
+        ctx = ApplicationContext(
+            modules=[identity],
+            globals=[ValueProvider(provide=Database, use_value=db)],
+        )
+        assert ctx.resolve(UserReader) is ctx.resolve(UserReader)
+
+    def test_use_existing_cross_module(self) -> None:
+        db = Database()
+        identity = Module(
+            name="identity",
+            providers=[
+                ClassProvider(provide=TeamReader, use_class=PgTeamReader),
+            ],
+            exports=[TeamReader],
+        )
+        consumer = Module(
+            name="consumer",
+            providers=[
+                ExistingProvider(provide=UserReader, use_existing=TeamReader),
+            ],
+            imports=[identity],
+        )
+        ctx = ApplicationContext(
+            modules=[identity, consumer],
+            globals=[ValueProvider(provide=Database, use_value=db)],
+        )
+        assert isinstance(ctx.resolve(UserReader), PgTeamReader)
 
 
 class BillingGateway:
@@ -318,7 +401,7 @@ class TestForwardRef:
         identity = Module(
             name="identity",
             providers=[
-                Provider(provide=TeamReader, use_class=PgTeamReader, scope=Scope.SINGLETON),
+                ClassProvider(provide=TeamReader, use_class=PgTeamReader),
             ],
             exports=[TeamReader],
             imports=[forward_ref("billing")],
@@ -326,11 +409,7 @@ class TestForwardRef:
         billing = Module(
             name="billing",
             providers=[
-                Provider(
-                    provide=BillingGateway,
-                    use_class=StripeBillingGateway,
-                    scope=Scope.SINGLETON,
-                ),
+                ClassProvider(provide=BillingGateway, use_class=StripeBillingGateway),
             ],
             exports=[BillingGateway],
             imports=[forward_ref("identity")],
@@ -338,7 +417,7 @@ class TestForwardRef:
         db = Database()
         ctx = ApplicationContext(
             modules=[identity, billing],
-            globals=[Provider(provide=Database, use_value=db)],
+            globals=[ValueProvider(provide=Database, use_value=db)],
         )
 
         assert isinstance(ctx.resolve(TeamReader), PgTeamReader)
@@ -348,18 +427,14 @@ class TestForwardRef:
 
         mod_a = Module(
             name="a",
-            providers=[Provider(provide=TeamReader, use_class=PgTeamReader, scope=Scope.SINGLETON)],
+            providers=[ClassProvider(provide=TeamReader, use_class=PgTeamReader)],
             exports=[TeamReader],
             imports=[forward_ref("b")],
         )
         mod_b = Module(
             name="b",
             providers=[
-                Provider(
-                    provide=BillingGateway,
-                    use_class=StripeBillingGateway,
-                    scope=Scope.SINGLETON,
-                ),
+                ClassProvider(provide=BillingGateway, use_class=StripeBillingGateway),
             ],
             exports=[BillingGateway],
             imports=[forward_ref("a")],
@@ -367,7 +442,7 @@ class TestForwardRef:
         with caplog.at_level(logging.WARNING, logger="spryx_di"):
             ApplicationContext(
                 modules=[mod_a, mod_b],
-                globals=[Provider(provide=Database, use_value=Database())],
+                globals=[ValueProvider(provide=Database, use_value=Database())],
             )
         assert "Circular dependency between modules" in caplog.text
 
@@ -396,8 +471,8 @@ class TestForwardRef:
         identity = Module(
             name="identity",
             providers=[
-                Provider(provide=TeamRepository, use_class=PgTeamRepository, scope=Scope.SINGLETON),
-                Provider(provide=TeamReader, use_class=PgTeamReader, scope=Scope.SINGLETON),
+                ClassProvider(provide=TeamRepository, use_class=PgTeamRepository),
+                ClassProvider(provide=TeamReader, use_class=PgTeamReader),
             ],
             exports=[TeamReader],
             imports=[forward_ref("billing")],
@@ -405,11 +480,7 @@ class TestForwardRef:
         billing = Module(
             name="billing",
             providers=[
-                Provider(
-                    provide=BillingGateway,
-                    use_class=StripeBillingGateway,
-                    scope=Scope.SINGLETON,
-                ),
+                ClassProvider(provide=BillingGateway, use_class=StripeBillingGateway),
             ],
             exports=[BillingGateway],
             imports=[forward_ref("identity")],
@@ -417,7 +488,7 @@ class TestForwardRef:
         db = Database()
         ctx = ApplicationContext(
             modules=[identity, billing],
-            globals=[Provider(provide=Database, use_value=db)],
+            globals=[ValueProvider(provide=Database, use_value=db)],
         )
 
         reader = ctx.resolve_within(billing, TeamReader)
@@ -457,14 +528,14 @@ class TestModuleOnDestroy:
         identity = Module(
             name="identity",
             providers=[
-                Provider(provide=TeamReader, use_class=PgTeamReader),
+                ClassProvider(provide=TeamReader, use_class=PgTeamReader),
             ],
             exports=[TeamReader],
             on_destroy=destroy_identity,
         )
         ctx = ApplicationContext(
             modules=[identity],
-            globals=[Provider(provide=Database, use_value=Database())],
+            globals=[ValueProvider(provide=Database, use_value=Database())],
         )
         await ctx.shutdown()
         assert destroyed == ["identity"]
@@ -487,7 +558,7 @@ class TestManagedInstances:
         resource = FakeResource()
         ctx = ApplicationContext(
             modules=[],
-            globals=[Provider(provide=FakeResource, use_value=resource)],
+            globals=[ValueProvider(provide=FakeResource, use_value=resource)],
         )
         await ctx.shutdown()
         assert resource.closed is True
@@ -497,7 +568,7 @@ class TestManagedInstances:
         client = FakeClient()
         ctx = ApplicationContext(
             modules=[],
-            globals=[Provider(provide=FakeClient, use_value=client)],
+            globals=[ValueProvider(provide=FakeClient, use_value=client)],
         )
         await ctx.shutdown()
         assert client.closed is True
@@ -521,7 +592,7 @@ class TestManagedInstances:
 
         mod = Module(
             name="test",
-            providers=[Provider(provide=TrackedResource, use_value=resource)],
+            providers=[ValueProvider(provide=TrackedResource, use_value=resource)],
             on_destroy=destroy,
         )
         ctx = ApplicationContext(modules=[mod])
@@ -539,7 +610,7 @@ class TestManagedInstances:
         obj = SyncCloseable()
         ctx = ApplicationContext(
             modules=[],
-            globals=[Provider(provide=SyncCloseable, use_value=obj)],
+            globals=[ValueProvider(provide=SyncCloseable, use_value=obj)],
         )
         await ctx.shutdown()
         assert obj.closed is True
@@ -552,13 +623,13 @@ class TestForwardRefIndirectCycle:
 
         mod_a = Module(
             name="a",
-            providers=[Provider(provide=TeamReader, use_class=PgTeamReader)],
+            providers=[ClassProvider(provide=TeamReader, use_class=PgTeamReader)],
             exports=[TeamReader],
         )
         mod_b = Module(
             name="b",
             providers=[
-                Provider(provide=BillingGateway, use_class=StripeBillingGateway),
+                ClassProvider(provide=BillingGateway, use_class=StripeBillingGateway),
             ],
             exports=[BillingGateway],
             imports=[mod_a, forward_ref("a")],
@@ -566,7 +637,7 @@ class TestForwardRefIndirectCycle:
         with caplog.at_level(logging.WARNING, logger="spryx_di"):
             ApplicationContext(
                 modules=[mod_a, mod_b],
-                globals=[Provider(provide=Database, use_value=Database())],
+                globals=[ValueProvider(provide=Database, use_value=Database())],
             )
 
 

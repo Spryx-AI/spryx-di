@@ -21,21 +21,21 @@ Problems: every new dependency requires manual wiring, no boundary enforcement, 
 ## After: spryx-di
 
 ```python
-from spryx_di import Module, Provider, ApplicationContext
+from spryx_di import ClassProvider, ValueProvider, Module, ApplicationContext
 
 identity_module = Module(
     name="identity",
     providers=[
-        Provider(provide=UserRepository, use_class=PgUserRepository),
-        Provider(provide=UserReader, use_class=PgUserReader),
-        Provider(provide=TeamReader, use_class=PgTeamReader),
+        ClassProvider(provide=UserRepository, use_class=PgUserRepository),
+        ClassProvider(provide=UserReader, use_class=PgUserReader),
+        ClassProvider(provide=TeamReader, use_class=PgTeamReader),
     ],
     exports=[UserReader, TeamReader],
 )
 
 ctx = ApplicationContext(
     modules=[identity_module],
-    globals=[Provider(provide=Database, use_value=db)],
+    globals=[ValueProvider(provide=Database, use_value=db)],
 )
 
 handler = ctx.resolve(ListHandler)  # auto-wired

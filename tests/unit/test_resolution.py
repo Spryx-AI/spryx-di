@@ -176,12 +176,12 @@ class TestSingletonFactoryCache:
 
 class TestTransientProvider:
     def test_transient_scope_in_module(self) -> None:
-        from spryx_di import ApplicationContext, Module, Provider, Scope
+        from spryx_di import ApplicationContext, ClassProvider, Module, Scope
 
         mod = Module(
             name="test",
             providers=[
-                Provider(provide=SimpleClass, use_class=SimpleClass, scope=Scope.TRANSIENT),
+                ClassProvider(provide=SimpleClass, use_class=SimpleClass, scope=Scope.TRANSIENT),
             ],
         )
         ctx = ApplicationContext(modules=[mod])

@@ -18,8 +18,8 @@ Types not in this set are inaccessible via `resolve_within()`.
 identity_module = Module(
     name="identity",
     providers=[
-        Provider(provide=UserRepository, use_class=PgUserRepository),
-        Provider(provide=UserReader, use_class=PgUserReader),
+        ClassProvider(provide=UserRepository, use_class=PgUserRepository),
+        ClassProvider(provide=UserReader, use_class=PgUserReader),
     ],
     exports=[UserReader],  # UserRepository NOT exported
 )

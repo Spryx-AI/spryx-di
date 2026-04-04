@@ -11,7 +11,15 @@ from spryx_di.errors import (
     ModuleBoundaryError,
     ModuleNotFoundError,
 )
-from spryx_di.provider import _MISSING, ForwardRef, Provider, Scope
+from spryx_di.provider import (
+    ClassProvider,
+    ExistingProvider,
+    FactoryProvider,
+    ForwardRef,
+    Provider,
+    Scope,
+    ValueProvider,
+)
 
 logger = logging.getLogger("spryx_di")
 
@@ -28,20 +36,35 @@ class Module:
 
 
 def _register_provider(container: Container, provider: Provider) -> None:
-    if provider.use_value is not _MISSING:
-        container.instance(provider.provide, provider.use_value)
-    elif provider.use_factory is not None:
-        container.factory(provider.provide, provider.use_factory)
-    elif provider.use_class is not None:
-        if provider.scope == Scope.SINGLETON:
-            container.singleton(provider.provide, provider.use_class)
-        else:
-            container.register(provider.provide, provider.use_class)
+    match provider:
+        case ValueProvider(provide=iface, use_value=val):
+            container.instance(iface, val)
+        case FactoryProvider(provide=iface, use_factory=fn, scope=scope):
+            if scope == Scope.SINGLETON:
+                cache: dict[type, object] = {}
+
+                def memoized(c: Container, _fn: Any = fn, _cache: Any = cache) -> Any:
+                    if _cache:
+                        return _cache[True]
+                    result = _fn(c)
+                    _cache[True] = result
+                    return result
+
+                container.factory(iface, memoized)
+            else:
+                container.factory(iface, fn)
+        case ExistingProvider(provide=iface, use_existing=target):
+            container.factory(iface, lambda c, _t=target: c.resolve(_t))
+        case ClassProvider(provide=iface, use_class=impl, scope=scope):
+            if scope == Scope.SINGLETON:
+                container.singleton(iface, impl)
+            else:
+                container.register(iface, impl)
 
 
 def _normalize_provider(item: Provider | type) -> Provider:
     if isinstance(item, type):
-        return Provider(provide=item, use_class=item)
+        return ClassProvider(provide=item, use_class=item)
     return item
 
 
