@@ -1,0 +1,33 @@
+docs/index.md
+  836bc7718462570d 31-35,37-47
+pyproject.toml
+  836bc7718462570d 27
+Makefile
+  836bc7718462570d 2,8,29-34
+zensical.toml
+  836bc7718462570d 1-60
+docs/getting-started/installation.md
+  836bc7718462570d 10,12-27,29-44,46-49
+.github/workflows/docs.yml
+  836bc7718462570d 1-40
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.5",
+  "base_commit_sha": "a03834a6c42521dca9332a5b4ec5d7ee023d9969",
+  "prompts": {
+    "836bc7718462570d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1da8828a-701e-427b-9ae6-b5eed5fa24d3",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Pedro Cantidio",
+      "messages": [],
+      "total_additions": 2494,
+      "total_deletions": 73,
+      "accepted_lines": 361,
+      "overriden_lines": 0
+    }
+  }
+}
