@@ -1,5 +1,10 @@
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from spryx_di.module import Module
+
 
 class UnresolvableTypeError(Exception):
     """Raised when a dependency cannot be resolved."""
@@ -72,17 +77,28 @@ class ModuleBoundaryError(Exception):
 
 
 class ExportWithoutProviderError(Exception):
-    """Raised when a module exports a type that is not in its providers."""
+    """Raised when a module exports a type that is not provided or re-exportable."""
 
-    def __init__(self, module_name: str, type_: type) -> None:
+    def __init__(self, module_name: str, type_: type | Module) -> None:
         self.module_name = module_name
         self.type_ = type_
-        super().__init__(
-            f"Module '{module_name}' exports '{type_.__name__}' "
-            f"but it is not in its providers.\n\n"
-            f"  Hint: Add a ClassProvider(provide={type_.__name__}, use_class=...) "
-            f"to the providers list, or remove {type_.__name__} from exports."
-        )
+        from spryx_di.module import Module
+
+        if isinstance(type_, Module):
+            name = type_.name
+            super().__init__(
+                f"Module '{module_name}' re-exports module '{name}' "
+                f"but does not import it.\n\n"
+                f"  Hint: Add '{name}' to the imports list of '{module_name}'."
+            )
+        else:
+            type_name = getattr(type_, "__name__", str(type_))
+            super().__init__(
+                f"Module '{module_name}' exports '{type_name}' "
+                f"but it is not in its providers and not exported by any imported module.\n\n"
+                f"  Hint: Add a provider for {type_name}, "
+                f"or import a module that exports it."
+            )
 
 
 class ModuleNotFoundError(Exception):
