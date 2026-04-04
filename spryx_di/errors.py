@@ -1,5 +1,10 @@
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from spryx_di.module import Module
+
 
 class UnresolvableTypeError(Exception):
     """Raised when a dependency cannot be resolved."""
@@ -74,7 +79,7 @@ class ModuleBoundaryError(Exception):
 class ExportWithoutProviderError(Exception):
     """Raised when a module exports a type that is not provided or re-exportable."""
 
-    def __init__(self, module_name: str, type_: type | object) -> None:
+    def __init__(self, module_name: str, type_: type | Module) -> None:
         self.module_name = module_name
         self.type_ = type_
         from spryx_di.module import Module

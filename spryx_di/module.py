@@ -123,11 +123,16 @@ def _has_path(
     return False
 
 
-def _compute_effective_exports(module: Module) -> set[type]:
+def _compute_effective_exports(module: Module, _visited: set[int] | None = None) -> set[type]:
+    if _visited is None:
+        _visited = set()
+    if id(module) in _visited:
+        return set()
+    _visited.add(id(module))
     result: set[type] = set()
     for item in module.exports:
         if isinstance(item, Module):
-            result |= _compute_effective_exports(item)
+            result |= _compute_effective_exports(item, _visited)
         else:
             result.add(item)
     return result
