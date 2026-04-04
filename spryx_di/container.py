@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import inspect
 import logging
+import sys
+import types
 import typing
-from typing import Any, TypeVar, cast
+from typing import Any, TypeVar, Union, cast, get_args, get_origin
 
 from spryx_di.errors import (
     CircularDependencyError,
@@ -122,8 +124,14 @@ class Container:
                     continue
                 raise TypeHintRequiredError(impl, name)
 
-            hint = hints[name]
-            if hint is inspect.Parameter.empty:
+            raw_hint = hints[name]
+            if raw_hint is inspect.Parameter.empty:
+                if param.default is not inspect.Parameter.empty:
+                    continue
+                raise TypeHintRequiredError(impl, name)
+
+            hint = self._unwrap_optional(raw_hint)
+            if hint is None:
                 if param.default is not inspect.Parameter.empty:
                     continue
                 raise TypeHintRequiredError(impl, name)
@@ -138,8 +146,29 @@ class Container:
         return impl(**kwargs)
 
     @staticmethod
+    def _unwrap_optional(hint: Any) -> type | None:
+        if hint is typing.Any:
+            return None
+
+        origin = get_origin(hint)
+        if isinstance(hint, types.UnionType) or origin is Union:
+            non_none = [a for a in get_args(hint) if a is not type(None)]
+            if len(non_none) == 1 and isinstance(non_none[0], type):
+                return non_none[0]
+            return None
+
+        if isinstance(hint, type):
+            return hint
+
+        return None
+
+    @staticmethod
     def _is_auto_wireable(type_: type) -> bool:
-        return type_.__module__ != "builtins"
+        if type_.__module__ == "builtins":
+            return False
+        if getattr(type_, "_is_protocol", False):
+            return False
+        return not getattr(type_, "__abstractmethods__", None)
 
     def _get_init_hints(self, cls: type) -> dict[str, type]:
         init = getattr(cls, "__init__", None)
@@ -150,7 +179,27 @@ class Container:
             raw.pop("return", None)
             return raw
         except Exception:
-            return {}
+            mod = sys.modules.get(cls.__module__)
+            globalns = dict(vars(mod)) if mod else {}
+            for source in (self._instances, self._singletons, self._transients, self._factories):
+                for registered_type in source:
+                    if not isinstance(registered_type, type):
+                        continue
+                    name = registered_type.__name__
+                    if name in globalns and globalns[name] is not registered_type:
+                        logger.warning(
+                            "Name collision in auto-wiring namespace: '%s' already exists. "
+                            "Use FactoryProvider for disambiguation.",
+                            name,
+                        )
+                        continue
+                    globalns.setdefault(name, registered_type)
+            try:
+                raw = typing.get_type_hints(init, globalns=globalns)
+                raw.pop("return", None)
+                return raw
+            except Exception:
+                return {}
 
     def _warn_duplicate(self, type_: type) -> None:
         if self.has(type_):
