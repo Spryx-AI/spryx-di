@@ -1052,3 +1052,17 @@ class TestIsPublic:
             globals=[ValueProvider(provide=Database, use_value=Database())],
         )
         assert ctx.is_public(TeamReader) is True
+
+    def test_is_public_returns_true_for_public_global(self) -> None:
+        ctx = ApplicationContext(
+            modules=[],
+            globals=[ValueProvider(provide=Database, use_value=Database(), public=True)],
+        )
+        assert ctx.is_public(Database) is True
+
+    def test_is_public_returns_false_for_non_public_global(self) -> None:
+        ctx = ApplicationContext(
+            modules=[],
+            globals=[ValueProvider(provide=Database, use_value=Database())],
+        )
+        assert ctx.is_public(Database) is False

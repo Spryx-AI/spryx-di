@@ -151,7 +151,10 @@ class ApplicationContext:
         # 2. Collect global types for dependency validation
         global_types: set[type] = set()
         for item in self._globals:
-            global_types.add(_normalize_provider(item).provide)
+            provider = _normalize_provider(item)
+            global_types.add(provider.provide)
+            if provider.public:
+                self._public_types.add(provider.provide)
 
         # 3. Validate every dependency is satisfied by some export or global
         for module in self._modules:
