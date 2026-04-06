@@ -1,6 +1,46 @@
 # CHANGELOG
 
 
+## v2.0.0 (2026-04-06)
+
+### Features
+
+- **module**: Replace imports/exports with dependencies and provider visibility flags
+  ([#9](https://github.com/Spryx-AI/spryx-di/pull/9),
+  [`93c7bf4`](https://github.com/Spryx-AI/spryx-di/commit/93c7bf402b19ae2ee5f77abb6caa1f1ed81cd993))
+
+* feat(module): replace imports/exports with dependencies and provider visibility flags
+
+BREAKING CHANGE: Module.imports renamed to Module.dependencies, Module.exports removed in favor of
+  export/public flags on providers, ExportWithoutProviderError removed, error classes renamed
+  (UnresolvedImportError -> UnresolvedDependencyError, CircularImportError ->
+  CircularDependencyInModulesError). Old names kept as aliases. Inject() now enforces public=True.
+  Boot emits warnings for unused providers, dependencies, and exports.
+
+* chore: sync uv.lock version
+
+* fix(fastapi): accept both Container and ApplicationContext in configure()
+
+* fix(module): include public globals in public_types registry
+
+* feat(cli): add spryx-di CLI with check, info, and graph commands
+
+Extract warning logic into analysis.py, add analyze() method to ApplicationContext, and implement
+  CLI via typer (optional dependency).
+
+* fix(cli): handle missing typer gracefully and validate callable before invoke
+
+* fix(cli): catch SpryxDIError during boot and display as formatted error
+
+### Breaking Changes
+
+- **module**: Module.imports renamed to Module.dependencies, Module.exports removed in favor of
+  export/public flags on providers, ExportWithoutProviderError removed, error classes renamed
+  (UnresolvedImportError -> UnresolvedDependencyError, CircularImportError ->
+  CircularDependencyInModulesError). Old names kept as aliases. Inject() now enforces public=True.
+  Boot emits warnings for unused providers, dependencies, and exports.
+
+
 ## v1.3.1 (2026-04-06)
 
 ### Refactoring
