@@ -801,7 +801,7 @@ class TestDeadCodeWarnings:
                 modules=[mod],
                 globals=[ValueProvider(provide=Database, use_value=Database())],
             )
-        unused = [r for r in caplog.records if "never used" in r.message]
+        unused = [r for r in caplog.records if "orphan provider" in r.message]
         names = {r.message.split("'")[3] for r in unused}
         assert "TeamReader" in names
         assert "ConversationRepo" in names
@@ -819,7 +819,7 @@ class TestDeadCodeWarnings:
                 modules=[mod],
                 globals=[ValueProvider(provide=Database, use_value=Database())],
             )
-        unused = [r for r in caplog.records if "never used" in r.message]
+        unused = [r for r in caplog.records if "orphan provider" in r.message]
         assert len(unused) == 0
 
     def test_internally_used_provider_no_unused_warning(
@@ -843,7 +843,7 @@ class TestDeadCodeWarnings:
         )
         with caplog.at_level("WARNING", logger="spryx_di"):
             ApplicationContext(modules=[mod])
-        unused = [r for r in caplog.records if "never used" in r.message]
+        unused = [r for r in caplog.records if "orphan provider" in r.message]
         assert len(unused) == 0
 
     # --- Unused dependency warnings ---
@@ -979,7 +979,7 @@ class TestDeadCodeWarnings:
                 modules=[mod],
                 globals=[ValueProvider(provide=Database, use_value=Database())],
             )
-        unused = [r for r in caplog.records if "never used" in r.message]
+        unused = [r for r in caplog.records if "orphan provider" in r.message]
         assert len(unused) == 0
 
 

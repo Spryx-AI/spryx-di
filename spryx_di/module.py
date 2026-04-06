@@ -79,6 +79,21 @@ def _get_init_hint_types(cls: type, extra_ns: dict[str, type] | None = None) -> 
     return result
 
 
+def _collect_needed_types(module: Module) -> set[type]:
+    extra_ns = {t.__name__: t for t in module.dependencies}
+    needed: set[type] = set()
+    for item in module.providers:
+        provider = _normalize_provider(item)
+        extra_ns[provider.provide.__name__] = provider.provide
+    for item in module.providers:
+        provider = _normalize_provider(item)
+        if isinstance(provider, ClassProvider) and provider.use_class is not None:
+            needed.update(_get_init_hint_types(provider.use_class, extra_ns))
+        elif isinstance(provider, ExistingProvider):
+            needed.add(provider.use_existing)
+    return needed
+
+
 def _register_provider(container: Container, provider: Provider) -> None:
     match provider:
         case ValueProvider(provide=iface, use_value=val):
@@ -185,9 +200,8 @@ class ApplicationContext:
             self._module_containers[module.name] = self._build_module_container(module)
 
         # 8. Warn about dead code
-        self._warn_unused_providers()
-        self._warn_unused_dependencies()
-        self._warn_unconsumed_exports()
+        for warning in self.analyze():
+            logger.warning(warning)
 
         # 9. Event system + managed instances
         self._boot_event_system()
@@ -246,67 +260,10 @@ class ApplicationContext:
         for module in modules:
             _visit(module.name, [], visited)
 
-    @staticmethod
-    def _collect_needed_types(module: Module) -> set[type]:
-        extra_ns = {t.__name__: t for t in module.dependencies}
-        needed: set[type] = set()
-        for item in module.providers:
-            provider = _normalize_provider(item)
-            extra_ns[provider.provide.__name__] = provider.provide
-        for item in module.providers:
-            provider = _normalize_provider(item)
-            if isinstance(provider, ClassProvider) and provider.use_class is not None:
-                needed.update(_get_init_hint_types(provider.use_class, extra_ns))
-            elif isinstance(provider, ExistingProvider):
-                needed.add(provider.use_existing)
-        return needed
+    def analyze(self) -> list[str]:
+        from spryx_di.analysis import analyze
 
-    def _warn_unused_providers(self) -> None:
-        for module in self._modules:
-            if not module.providers:
-                continue
-            needed_types = self._collect_needed_types(module)
-            for item in module.providers:
-                provider = _normalize_provider(item)
-                if provider.export or provider.public:
-                    continue
-                if provider.provide not in needed_types:
-                    logger.warning(
-                        "Module '%s' registers provider '%s' "
-                        "but it is never used by any other provider and is not exported or public. "
-                        "Consider removing it.",
-                        module.name,
-                        provider.provide.__name__,
-                    )
-
-    def _warn_unused_dependencies(self) -> None:
-        for module in self._modules:
-            if not module.dependencies:
-                continue
-            needed_types = self._collect_needed_types(module)
-            for dep_type in module.dependencies:
-                if dep_type not in needed_types:
-                    logger.warning(
-                        "Module '%s' declares dependency '%s' "
-                        "but none of its providers depend on it. "
-                        "Consider removing it from dependencies.",
-                        module.name,
-                        dep_type.__name__,
-                    )
-
-    def _warn_unconsumed_exports(self) -> None:
-        all_dependencies: set[type] = set()
-        for module in self._modules:
-            all_dependencies.update(module.dependencies)
-        for export_type, module_name in self._export_registry.items():
-            if export_type not in all_dependencies:
-                logger.warning(
-                    "Module '%s' exports '%s' "
-                    "but no module depends on it. "
-                    "Consider removing export=True from the provider.",
-                    module_name,
-                    export_type.__name__,
-                )
+        return analyze(self)
 
     def _boot_event_system(self) -> None:
         from spryx_di.events.bus import EventBus
