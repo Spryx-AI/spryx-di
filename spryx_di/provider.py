@@ -5,17 +5,6 @@ from enum import Enum
 from typing import Any
 
 
-@dataclass(frozen=True)
-class ForwardRef:
-    """Lazy module reference — avoids circular imports between module files."""
-
-    module_name: str
-
-
-def forward_ref(name: str) -> ForwardRef:
-    return ForwardRef(module_name=name)
-
-
 class Scope(Enum):
     """Lifecycle scope for a provider."""
 

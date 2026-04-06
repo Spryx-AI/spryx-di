@@ -2,16 +2,18 @@
 
 from spryx_di.container import Container, ScopedContainer
 from spryx_di.errors import (
+    AmbiguousExportError,
     CircularDependencyError,
-    CircularModuleError,
+    CircularImportError,
     ExportWithoutProviderError,
     InvalidListenerError,
     MissingEventBackendError,
     ModuleBoundaryError,
-    ModuleNotFoundError,
     SerializationError,
+    SpryxDIError,
     TypeHintRequiredError,
     UnresolvableTypeError,
+    UnresolvedImportError,
 )
 from spryx_di.events import (
     AsyncEventBackend,
@@ -26,18 +28,17 @@ from spryx_di.provider import (
     ClassProvider,
     ExistingProvider,
     FactoryProvider,
-    ForwardRef,
     Provider,
     Scope,
     ValueProvider,
-    forward_ref,
 )
 
 __all__ = [
+    "AmbiguousExportError",
     "ApplicationContext",
     "AsyncEventBackend",
     "CircularDependencyError",
-    "CircularModuleError",
+    "CircularImportError",
     "ClassProvider",
     "Container",
     "EventBus",
@@ -47,19 +48,18 @@ __all__ = [
     "ExistingProvider",
     "ExportWithoutProviderError",
     "FactoryProvider",
-    "ForwardRef",
     "InvalidListenerError",
     "ListenerScope",
     "MissingEventBackendError",
     "Module",
     "ModuleBoundaryError",
-    "ModuleNotFoundError",
     "Provider",
     "ScopedContainer",
     "Scope",
     "SerializationError",
+    "SpryxDIError",
     "TypeHintRequiredError",
+    "UnresolvedImportError",
     "UnresolvableTypeError",
     "ValueProvider",
-    "forward_ref",
 ]

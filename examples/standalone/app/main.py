@@ -3,7 +3,7 @@ Composition root — sem FastAPI, uso direto do container.
 
 Demonstra:
   1. ApplicationContext com 3 modulos
-  2. forward_ref para dependencia bidirecional (identity <-> notifications)
+  2. Port-based imports (types como contratos entre modulos)
   3. resolve() para obter handlers auto-wired
   4. resolve_within() com boundary enforcement
   5. ModuleBoundaryError quando fronteira e violada
@@ -34,7 +34,7 @@ def main() -> None:
         modules=[identity_module, notifications_module, orders_module],
     )
     print("    Modules: identity, notifications, orders")
-    print("    forward_ref: identity <-> notifications (bidirecional)")
+    print("    imports: notifications -> UserReader, orders -> UserReader + NotificationSender")
 
     # ── 2. Seed data ──
     print("\n[2] Seeding data...")

@@ -1,12 +1,11 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
 
-if TYPE_CHECKING:
-    from spryx_di.module import Module
+class SpryxDIError(Exception):
+    """Base exception for all spryx-di errors."""
 
 
-class UnresolvableTypeError(Exception):
+class UnresolvableTypeError(SpryxDIError):
     """Raised when a dependency cannot be resolved."""
 
     def __init__(self, target: type, parameter: str, expected_type: type) -> None:
@@ -31,7 +30,7 @@ class UnresolvableTypeError(Exception):
         super().__init__(msg)
 
 
-class CircularDependencyError(Exception):
+class CircularDependencyError(SpryxDIError):
     """Raised when a circular dependency is detected."""
 
     def __init__(self, chain: list[type]) -> None:
@@ -40,7 +39,7 @@ class CircularDependencyError(Exception):
         super().__init__(f"Circular dependency detected:\n  {names}")
 
 
-class TypeHintRequiredError(Exception):
+class TypeHintRequiredError(SpryxDIError):
     """Raised when __init__ parameter has no type hint."""
 
     def __init__(self, target: type, parameter: str) -> None:
@@ -54,7 +53,7 @@ class TypeHintRequiredError(Exception):
         )
 
 
-class ModuleBoundaryError(Exception):
+class ModuleBoundaryError(SpryxDIError):
     """Raised when resolving a type that violates module boundaries."""
 
     def __init__(
@@ -76,58 +75,71 @@ class ModuleBoundaryError(Exception):
         )
 
 
-class ExportWithoutProviderError(Exception):
-    """Raised when a module exports a type that is not provided or re-exportable."""
+class ExportWithoutProviderError(SpryxDIError):
+    """Raised when a module exports a type that is not in its providers."""
 
-    def __init__(self, module_name: str, type_: type | Module) -> None:
+    def __init__(self, module_name: str, type_: type) -> None:
         self.module_name = module_name
         self.type_ = type_
-        from spryx_di.module import Module
-
-        if isinstance(type_, Module):
-            name = type_.name
-            super().__init__(
-                f"Module '{module_name}' re-exports module '{name}' "
-                f"but does not import it.\n\n"
-                f"  Hint: Add '{name}' to the imports list of '{module_name}'."
-            )
-        else:
-            type_name = getattr(type_, "__name__", str(type_))
-            super().__init__(
-                f"Module '{module_name}' exports '{type_name}' "
-                f"but it is not in its providers and not exported by any imported module.\n\n"
-                f"  Hint: Add a provider for {type_name}, "
-                f"or import a module that exports it."
-            )
+        type_name = getattr(type_, "__name__", str(type_))
+        super().__init__(
+            f"Module '{module_name}' exports '{type_name}' "
+            f"but it is not in its providers.\n\n"
+            f"  Hint: Add a provider for {type_name}."
+        )
 
 
-class ModuleNotFoundError(Exception):
-    """Raised when a module imports another module not registered in ApplicationContext."""
+class UnresolvedImportError(SpryxDIError):
+    """Module requires a port that no module exports."""
 
-    def __init__(self, module_name: str, imported_name: str) -> None:
+    def __init__(
+        self,
+        module_name: str,
+        import_type: type,
+        available_exports: dict[type, str],
+    ) -> None:
         self.module_name = module_name
-        self.imported_name = imported_name
+        self.import_type = import_type
+        self.available_exports = available_exports
+        available = "\n".join(
+            f"  {t.__name__} (exported by '{m}')" for t, m in available_exports.items()
+        )
         super().__init__(
-            f"Module '{module_name}' imports module '{imported_name}' "
-            f"which is not registered in the ApplicationContext.\n\n"
-            f"  Hint: Add '{imported_name}' to the modules list in ApplicationContext."
+            f"Module '{module_name}' requires '{import_type.__name__}' "
+            f"but no module exports it.\n\n"
+            f"Available exports:\n{available}"
         )
 
 
-class CircularModuleError(Exception):
-    """Raised when circular dependencies are detected between modules."""
+class AmbiguousExportError(SpryxDIError):
+    """Two modules export the same port."""
 
-    def __init__(self, chain: list[str]) -> None:
-        self.chain = chain
-        names = " -> ".join(chain)
+    def __init__(self, export_type: type, module_a: str, module_b: str) -> None:
+        self.export_type = export_type
+        self.module_a = module_a
+        self.module_b = module_b
         super().__init__(
-            f"Circular module dependency detected:\n"
-            f"  {names}\n\n"
-            f"  Hint: Break the cycle by extracting shared types into a separate module."
+            f"'{export_type.__name__}' is exported by both "
+            f"'{module_a}' and '{module_b}'.\n"
+            f"Only one module should export each port."
         )
 
 
-class InvalidListenerError(Exception):
+class CircularImportError(SpryxDIError):
+    """Circular dependency detected in the module import graph."""
+
+    def __init__(self, cycle: list[str]) -> None:
+        self.cycle = cycle
+        chain = " -> ".join(cycle)
+        super().__init__(
+            f"Circular dependency detected: {chain}\n\n"
+            f"Hint: Use the event bus to break the cycle. "
+            f"One of the modules should publish an event instead of "
+            f"importing a port from the other."
+        )
+
+
+class InvalidListenerError(SpryxDIError):
     """Raised when a listener's handler does not extend EventHandler."""
 
     def __init__(self, handler_name: str) -> None:
@@ -138,7 +150,7 @@ class InvalidListenerError(Exception):
         )
 
 
-class MissingEventBackendError(Exception):
+class MissingEventBackendError(SpryxDIError):
     """Raised when an async listener is declared but no event_backend is configured."""
 
     def __init__(self, module_name: str, handler_name: str) -> None:
@@ -152,7 +164,7 @@ class MissingEventBackendError(Exception):
         )
 
 
-class SerializationError(Exception):
+class SerializationError(SpryxDIError):
     """Raised when an event cannot be serialized."""
 
     def __init__(self, type_name: str) -> None:
