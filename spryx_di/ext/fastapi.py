@@ -13,9 +13,13 @@ from spryx_di.module import ApplicationContext
 T = TypeVar("T")
 
 
-def configure(app: FastAPI, ctx: ApplicationContext) -> None:
-    app.state.container = ctx.container
-    app.state.app_context = ctx
+def configure(app: FastAPI, ctx: ApplicationContext | Container) -> None:
+    if isinstance(ctx, ApplicationContext):
+        app.state.container = ctx.container
+        app.state.app_context = ctx
+    else:
+        app.state.container = ctx
+        app.state.app_context = None
     app.add_middleware(RequestScopeMiddleware)
 
 
