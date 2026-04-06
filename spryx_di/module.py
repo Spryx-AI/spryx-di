@@ -1,24 +1,23 @@
 from __future__ import annotations
 
-import logging
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, TypeVar
 
 from spryx_di.container import Container, ScopedContainer
 from spryx_di.errors import (
-    CircularModuleError,
+    AmbiguousExportError,
+    CircularImportError,
     ExportWithoutProviderError,
     InvalidListenerError,
     MissingEventBackendError,
     ModuleBoundaryError,
-    ModuleNotFoundError,
+    UnresolvedImportError,
 )
 from spryx_di.provider import (
     ClassProvider,
     ExistingProvider,
     FactoryProvider,
-    ForwardRef,
     Provider,
     Scope,
     ValueProvider,
@@ -28,8 +27,6 @@ if TYPE_CHECKING:
     from spryx_di.events.backend import AsyncEventBackend
     from spryx_di.events.handler import EventHandler
     from spryx_di.events.listener import EventListener
-
-logger = logging.getLogger("spryx_di")
 
 T = TypeVar("T")
 
@@ -42,11 +39,17 @@ class Module:
     """Declarative module definition."""
 
     name: str
-    providers: list[Provider] = field(default_factory=list)
-    exports: list[type | Module] = field(default_factory=list)
-    imports: list[Module | ForwardRef] = field(default_factory=list)
+    providers: list[Provider | type] = field(default_factory=list)
+    exports: list[type] = field(default_factory=list)
+    imports: list[type] = field(default_factory=list)
     on_destroy: OnDestroyHook | None = None
     listeners: list[EventListener] = field(default_factory=list)
+
+
+def _normalize_provider(p: Provider | type) -> Provider:
+    if isinstance(p, type):
+        return ClassProvider(provide=p)
+    return p
 
 
 def _register_provider(container: Container, provider: Provider) -> None:
@@ -80,83 +83,13 @@ def _register_provider(container: Container, provider: Provider) -> None:
                 container.register(iface, impl)
 
 
-def _detect_circular_modules(
-    modules: list[Module],
-    resolved_imports: dict[str, list[Module]],
-    forward_ref_edges: set[tuple[str, str]],
-) -> None:
-    def _visit(name: str, path: list[str], visited: set[str]) -> None:
-        if name in path:
-            cycle = path[path.index(name) :] + [name]
-            raise CircularModuleError(cycle)
-        if name in visited:
-            return
-        path.append(name)
-        for imp in resolved_imports.get(name, []):
-            if (name, imp.name) not in forward_ref_edges:
-                _visit(imp.name, path, visited)
-        path.pop()
-        visited.add(name)
-
-    visited: set[str] = set()
-    for mod in modules:
-        _visit(mod.name, [], visited)
-
-    for src, dst in forward_ref_edges:
-        if (dst, src) in forward_ref_edges or _has_path(
-            dst, src, resolved_imports, forward_ref_edges
-        ):
-            logger.warning(
-                "Circular dependency between modules '%s' <-> '%s' "
-                "(resolved via forward_ref). Consider extracting shared types "
-                "into a separate module if this grows.",
-                src,
-                dst,
-            )
-
-
-def _has_path(
-    start: str,
-    end: str,
-    resolved_imports: dict[str, list[Module]],
-    forward_ref_edges: set[tuple[str, str]],
-) -> bool:
-    visited: set[str] = set()
-    stack = [start]
-    while stack:
-        current = stack.pop()
-        if current == end:
-            return True
-        if current in visited:
-            continue
-        visited.add(current)
-        for imp in resolved_imports.get(current, []):
-            stack.append(imp.name)
-    return False
-
-
-def _compute_effective_exports(module: Module, _visited: set[int] | None = None) -> set[type]:
-    if _visited is None:
-        _visited = set()
-    if id(module) in _visited:
-        return set()
-    _visited.add(id(module))
-    result: set[type] = set()
-    for item in module.exports:
-        if isinstance(item, Module):
-            result |= _compute_effective_exports(item, _visited)
-        else:
-            result.add(item)
-    return result
-
-
 class ApplicationContext:
     """Composes modules with boundary enforcement."""
 
     def __init__(
         self,
         modules: list[Module],
-        globals: list[Provider] | None = None,
+        globals: list[Provider | type] | None = None,
         event_backend: AsyncEventBackend | None = None,
     ) -> None:
         self._modules = modules
@@ -165,79 +98,118 @@ class ApplicationContext:
         self._container = Container()
         self._module_containers: dict[str, Container] = {}
         self._provider_to_module: dict[type, str] = {}
-        self._exported_types: dict[str, set[type]] = {}
-        self._resolved_imports: dict[str, list[Module]] = {}
-        self._forward_ref_edges: set[tuple[str, str]] = set()
+        self._export_registry: dict[type, str] = {}
         self._managed_instances: list[object] = []
         self._event_registry: dict[str, type] = {}
         self._handler_registry: dict[str, type[EventHandler]] = {}
         self._boot()
 
     def _boot(self) -> None:
-        module_map: dict[str, Module] = {m.name: m for m in self._modules}
-        module_ids = {id(m) for m in self._modules}
-
+        # 1. Build export registry
         for module in self._modules:
-            resolved: list[Module] = []
-            for imp in module.imports:
-                if isinstance(imp, ForwardRef):
-                    target = module_map.get(imp.module_name)
-                    if target is None:
-                        raise ModuleNotFoundError(module.name, imp.module_name)
-                    resolved.append(target)
-                    self._forward_ref_edges.add((module.name, imp.module_name))
-                elif isinstance(imp, Module):
-                    if id(imp) not in module_ids:
-                        raise ModuleNotFoundError(module.name, imp.name)
-                    resolved.append(imp)
-            self._resolved_imports[module.name] = resolved
+            for export_type in module.exports:
+                if export_type in self._export_registry:
+                    raise AmbiguousExportError(
+                        export_type,
+                        self._export_registry[export_type],
+                        module.name,
+                    )
+                self._export_registry[export_type] = module.name
 
+        # 2. Validate every export has a provider in its module
         for module in self._modules:
-            provider_types = {p.provide for p in module.providers}
-            imported_modules = {id(imp) for imp in self._resolved_imports[module.name]}
-            imported_export_types: set[type] = set()
-            for imp in self._resolved_imports[module.name]:
-                imported_export_types |= _compute_effective_exports(imp)
-
+            provider_types = {_normalize_provider(p).provide for p in module.providers}
             for export in module.exports:
-                if isinstance(export, Module):
-                    if id(export) not in imported_modules:
-                        raise ExportWithoutProviderError(module.name, export)
-                elif export not in provider_types and export not in imported_export_types:
+                if export not in provider_types:
                     raise ExportWithoutProviderError(module.name, export)
 
-        _detect_circular_modules(self._modules, self._resolved_imports, self._forward_ref_edges)
-
-        for item in self._globals:
-            _register_provider(self._container, item)
-
+        # 3. Validate every import is satisfied by some export
         for module in self._modules:
-            self._exported_types[module.name] = _compute_effective_exports(module)
+            for import_type in module.imports:
+                if import_type not in self._export_registry:
+                    raise UnresolvedImportError(
+                        module_name=module.name,
+                        import_type=import_type,
+                        available_exports=self._export_registry,
+                    )
+
+        # 4. Detect cycles in the import graph
+        self._detect_import_cycles(self._modules, self._export_registry)
+
+        # 5. Register globals
+        for item in self._globals:
+            _register_provider(self._container, _normalize_provider(item))
+
+        # 6. Register providers from all modules
+        for module in self._modules:
             for item in module.providers:
-                provider = item
+                provider = _normalize_provider(item)
                 _register_provider(self._container, provider)
                 self._provider_to_module[provider.provide] = module.name
 
+        # 7. Build per-module containers
         for module in self._modules:
-            self._module_containers[module.name] = self._build_module_container(module)
+            self._module_containers[module.name] = self._build_module_container(
+                module, self._export_registry
+            )
 
+        # 8. Event system + managed instances
         self._boot_event_system()
         self._collect_managed_instances()
 
-    def _build_module_container(self, module: Module) -> Container:
+    def _build_module_container(
+        self,
+        module: Module,
+        export_registry: dict[type, str],
+    ) -> Container:
         mod_container = Container()
 
+        # Globals
         for item in self._globals:
-            _register_provider(mod_container, item)
+            _register_provider(mod_container, _normalize_provider(item))
 
+        # Own providers
         for item in module.providers:
-            _register_provider(mod_container, item)
+            _register_provider(mod_container, _normalize_provider(item))
 
-        for imp in self._resolved_imports[module.name]:
-            for export_type in self._exported_types.get(imp.name, set()):
-                mod_container.instance(export_type, self._container.resolve(export_type))
+        # Imports — resolve each port from the main container
+        for import_type in module.imports:
+            instance = self._container.resolve(import_type)
+            mod_container.instance(import_type, instance)
 
         return mod_container
+
+    def _detect_import_cycles(
+        self,
+        modules: list[Module],
+        export_registry: dict[type, str],
+    ) -> None:
+        # Build graph: module_name -> set of module_names it depends on
+        depends_on: dict[str, set[str]] = {}
+        for module in modules:
+            deps: set[str] = set()
+            for import_type in module.imports:
+                provider_module = export_registry.get(import_type)
+                if provider_module and provider_module != module.name:
+                    deps.add(provider_module)
+            depends_on[module.name] = deps
+
+        # DFS cycle detection
+        def _visit(name: str, path: list[str], visited: set[str]) -> None:
+            if name in path:
+                cycle = path[path.index(name) :] + [name]
+                raise CircularImportError(cycle)
+            if name in visited:
+                return
+            path.append(name)
+            for dep in depends_on.get(name, set()):
+                _visit(dep, path, visited)
+            path.pop()
+            visited.add(name)
+
+        visited: set[str] = set()
+        for module in modules:
+            _visit(module.name, [], visited)
 
     def _boot_event_system(self) -> None:
         from spryx_di.events.bus import EventBus
@@ -281,21 +253,18 @@ class ApplicationContext:
     def resolve_within(self, module: Module, type_: type[T]) -> T:
         mod_container = self._module_containers.get(module.name)
         if mod_container is None:
-            raise ModuleNotFoundError("(caller)", module.name)
+            msg = f"Module '{module.name}' is not registered in the ApplicationContext."
+            raise ValueError(msg)
 
         owner = self._provider_to_module.get(type_)
-        if owner is not None and owner != module.name:
-            imported_exports: set[type] = set()
-            for imp in self._resolved_imports.get(module.name, []):
-                imported_exports |= self._exported_types.get(imp.name, set())
-
-            if type_ not in imported_exports:
-                raise ModuleBoundaryError(
-                    type_=type_,
-                    module_name=module.name,
-                    owner_module=owner,
-                    exported=self._exported_types.get(owner, set()),
-                )
+        if owner is not None and owner != module.name and type_ not in set(module.imports):
+            owner_exports = {t for t, m in self._export_registry.items() if m == owner}
+            raise ModuleBoundaryError(
+                type_=type_,
+                module_name=module.name,
+                owner_module=owner,
+                exported=owner_exports,
+            )
 
         return mod_container.resolve(type_)
 

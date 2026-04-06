@@ -1,22 +1,20 @@
 from __future__ import annotations
 
-import logging
-
 import pytest
 
 from spryx_di import (
+    AmbiguousExportError,
     ApplicationContext,
-    CircularModuleError,
+    CircularImportError,
     ClassProvider,
     ExistingProvider,
     ExportWithoutProviderError,
     FactoryProvider,
     Module,
     ModuleBoundaryError,
-    ModuleNotFoundError,
     Scope,
+    UnresolvedImportError,
     ValueProvider,
-    forward_ref,
 )
 
 
@@ -65,6 +63,29 @@ class PgConversationRepo(ConversationRepo):
 class ListHandler:
     def __init__(self, reader: TeamReader) -> None:
         self.reader = reader
+
+
+class BillingGateway:
+    pass
+
+
+class StripeBillingGateway(BillingGateway):
+    pass
+
+
+# --- Ports (ABCs/Protocols used as import types) ---
+
+
+class TeamReaderPort:
+    """Port for cross-module import of TeamReader."""
+
+    pass
+
+
+class BillingGatewayPort:
+    """Port for cross-module import of BillingGateway."""
+
+    pass
 
 
 class TestModuleDefinition:
@@ -153,21 +174,22 @@ class TestApplicationContext:
         reader = ctx.resolve(TeamReader)
         assert isinstance(reader, PgTeamReader)
 
-    def test_cross_module_imports(self) -> None:
+    def test_cross_module_imports_via_ports(self) -> None:
+        """Modules import ports (types), not other modules."""
         identity = Module(
             name="identity",
             providers=[
                 ClassProvider(provide=TeamReader, use_class=PgTeamReader),
+                ExistingProvider(provide=TeamReaderPort, use_existing=TeamReader),
             ],
-            exports=[TeamReader],
+            exports=[TeamReaderPort],
         )
         conversations = Module(
             name="conversations",
             providers=[
                 ClassProvider(provide=ConversationRepo, use_class=PgConversationRepo),
             ],
-            exports=[],
-            imports=[identity],
+            imports=[TeamReaderPort],
         )
         db = Database()
         ctx = ApplicationContext(
@@ -175,22 +197,9 @@ class TestApplicationContext:
             globals=[ValueProvider(provide=Database, use_value=db)],
         )
 
-        handler = ctx.resolve_within(conversations, ListHandler)
-        assert isinstance(handler.reader, PgTeamReader)
-
-    def test_last_module_provider_wins(self) -> None:
-        mod_a = Module(
-            name="a",
-            providers=[ClassProvider(provide=UserReader, use_class=PgUserReader)],
-            exports=[UserReader],
-        )
-        mod_b = Module(
-            name="b",
-            providers=[ClassProvider(provide=UserReader, use_class=HttpUserReader)],
-            exports=[UserReader],
-        )
-        ctx = ApplicationContext(modules=[mod_a, mod_b])
-        assert isinstance(ctx.resolve(UserReader), HttpUserReader)
+        # The imported port is available in the module container
+        port = ctx.resolve_within(conversations, TeamReaderPort)
+        assert isinstance(port, PgTeamReader)
 
 
 class TestModuleBoundary:
@@ -200,15 +209,16 @@ class TestModuleBoundary:
             providers=[
                 ClassProvider(provide=TeamRepository, use_class=PgTeamRepository),
                 ClassProvider(provide=TeamReader, use_class=PgTeamReader),
+                ExistingProvider(provide=TeamReaderPort, use_existing=TeamReader),
             ],
-            exports=[TeamReader],
+            exports=[TeamReaderPort],
         )
         conversations = Module(
             name="conversations",
             providers=[
                 ClassProvider(provide=ConversationRepo, use_class=PgConversationRepo),
             ],
-            imports=[identity],
+            imports=[TeamReaderPort],
         )
         db = Database()
         ctx = ApplicationContext(
@@ -236,43 +246,239 @@ class TestModuleBoundary:
         assert "TeamReader" in str(exc_info.value)
         assert "Hint" in str(exc_info.value)
 
-    def test_module_not_found_raises(self) -> None:
-        orphan = Module(name="orphan", providers=[], exports=[])
-        with pytest.raises(ModuleNotFoundError) as exc_info:
+
+class TestUnresolvedImport:
+    def test_unresolved_import_raises(self) -> None:
+        mod = Module(
+            name="consumer",
+            providers=[],
+            imports=[TeamReaderPort],
+        )
+        with pytest.raises(UnresolvedImportError) as exc_info:
+            ApplicationContext(modules=[mod])
+        assert "TeamReaderPort" in str(exc_info.value)
+        assert "consumer" in str(exc_info.value)
+
+    def test_unresolved_import_shows_available_exports(self) -> None:
+        identity = Module(
+            name="identity",
+            providers=[
+                ClassProvider(provide=TeamReader, use_class=PgTeamReader),
+                ExistingProvider(provide=TeamReaderPort, use_existing=TeamReader),
+            ],
+            exports=[TeamReaderPort],
+        )
+        consumer = Module(
+            name="consumer",
+            providers=[],
+            imports=[BillingGatewayPort],
+        )
+        db = Database()
+        with pytest.raises(UnresolvedImportError) as exc_info:
             ApplicationContext(
-                modules=[
-                    Module(
-                        name="consumer",
-                        providers=[],
-                        imports=[orphan],
-                    )
-                ]
+                modules=[identity, consumer],
+                globals=[ValueProvider(provide=Database, use_value=db)],
             )
-        assert "orphan" in str(exc_info.value)
-        assert "Hint" in str(exc_info.value)
+        assert "BillingGatewayPort" in str(exc_info.value)
+        assert "TeamReaderPort" in str(exc_info.value)
 
 
-class TestCircularModules:
-    def test_direct_circular_raises(self) -> None:
-        mod_a: Module = Module(name="a", providers=[], imports=[])
-        mod_b: Module = Module(name="b", providers=[], imports=[mod_a])
-        mod_a.imports = [mod_b]
-
-        with pytest.raises(CircularModuleError) as exc_info:
+class TestAmbiguousExport:
+    def test_ambiguous_export_raises(self) -> None:
+        mod_a = Module(
+            name="a",
+            providers=[ClassProvider(provide=TeamReaderPort)],
+            exports=[TeamReaderPort],
+        )
+        mod_b = Module(
+            name="b",
+            providers=[ClassProvider(provide=TeamReaderPort)],
+            exports=[TeamReaderPort],
+        )
+        with pytest.raises(AmbiguousExportError) as exc_info:
             ApplicationContext(modules=[mod_a, mod_b])
+        assert "TeamReaderPort" in str(exc_info.value)
+        assert "a" in str(exc_info.value)
+        assert "b" in str(exc_info.value)
+
+
+class TestCircularImports:
+    def test_direct_circular_raises(self) -> None:
+        """A imports from B, B imports from A → cycle."""
+        mod_a = Module(
+            name="a",
+            providers=[
+                ClassProvider(provide=TeamReader, use_class=PgTeamReader),
+                ExistingProvider(provide=TeamReaderPort, use_existing=TeamReader),
+            ],
+            exports=[TeamReaderPort],
+            imports=[BillingGatewayPort],
+        )
+        mod_b = Module(
+            name="b",
+            providers=[
+                ClassProvider(provide=BillingGateway, use_class=StripeBillingGateway),
+                ExistingProvider(provide=BillingGatewayPort, use_existing=BillingGateway),
+            ],
+            exports=[BillingGatewayPort],
+            imports=[TeamReaderPort],
+        )
+        db = Database()
+        with pytest.raises(CircularImportError) as exc_info:
+            ApplicationContext(
+                modules=[mod_a, mod_b],
+                globals=[ValueProvider(provide=Database, use_value=db)],
+            )
         assert "a" in str(exc_info.value)
         assert "b" in str(exc_info.value)
         assert "Hint" in str(exc_info.value)
 
     def test_indirect_circular_raises(self) -> None:
-        mod_a: Module = Module(name="a", providers=[], imports=[])
-        mod_b: Module = Module(name="b", providers=[], imports=[mod_a])
-        mod_c: Module = Module(name="c", providers=[], imports=[mod_b])
-        mod_a.imports = [mod_c]
+        """A→B→C→A cycle."""
 
-        with pytest.raises(CircularModuleError) as exc_info:
+        class PortA:
+            pass
+
+        class PortB:
+            pass
+
+        class PortC:
+            pass
+
+        mod_a = Module(
+            name="a",
+            providers=[ClassProvider(provide=PortA)],
+            exports=[PortA],
+            imports=[PortC],
+        )
+        mod_b = Module(
+            name="b",
+            providers=[ClassProvider(provide=PortB)],
+            exports=[PortB],
+            imports=[PortA],
+        )
+        mod_c = Module(
+            name="c",
+            providers=[ClassProvider(provide=PortC)],
+            exports=[PortC],
+            imports=[PortB],
+        )
+        with pytest.raises(CircularImportError) as exc_info:
             ApplicationContext(modules=[mod_a, mod_b, mod_c])
         assert "a" in str(exc_info.value)
+
+    def test_no_cycle_when_unidirectional(self) -> None:
+        """A→B is fine when B doesn't import from A."""
+        mod_a = Module(
+            name="a",
+            providers=[
+                ClassProvider(provide=TeamReader, use_class=PgTeamReader),
+                ExistingProvider(provide=TeamReaderPort, use_existing=TeamReader),
+            ],
+            exports=[TeamReaderPort],
+        )
+        mod_b = Module(
+            name="b",
+            providers=[
+                ClassProvider(provide=BillingGateway, use_class=StripeBillingGateway),
+            ],
+            imports=[TeamReaderPort],
+        )
+        db = Database()
+        ctx = ApplicationContext(
+            modules=[mod_a, mod_b],
+            globals=[ValueProvider(provide=Database, use_value=db)],
+        )
+        assert isinstance(ctx.resolve(BillingGateway), StripeBillingGateway)
+
+
+class TestImportResolution:
+    def test_imported_port_resolved_in_module_container(self) -> None:
+        identity = Module(
+            name="identity",
+            providers=[
+                ClassProvider(provide=TeamReader, use_class=PgTeamReader),
+                ExistingProvider(provide=TeamReaderPort, use_existing=TeamReader),
+            ],
+            exports=[TeamReaderPort],
+        )
+        consumer = Module(
+            name="consumer",
+            providers=[
+                ClassProvider(provide=ConversationRepo, use_class=PgConversationRepo),
+            ],
+            imports=[TeamReaderPort],
+        )
+        db = Database()
+        ctx = ApplicationContext(
+            modules=[identity, consumer],
+            globals=[ValueProvider(provide=Database, use_value=db)],
+        )
+
+        port = ctx.resolve_within(consumer, TeamReaderPort)
+        assert isinstance(port, PgTeamReader)
+
+    def test_module_container_no_access_to_undeclared_ports(self) -> None:
+        """A module can't access exports it didn't declare in imports."""
+        identity = Module(
+            name="identity",
+            providers=[
+                ClassProvider(provide=TeamReader, use_class=PgTeamReader),
+                ExistingProvider(provide=TeamReaderPort, use_existing=TeamReader),
+            ],
+            exports=[TeamReaderPort],
+        )
+        billing = Module(
+            name="billing",
+            providers=[
+                ClassProvider(provide=BillingGateway, use_class=StripeBillingGateway),
+                ExistingProvider(provide=BillingGatewayPort, use_existing=BillingGateway),
+            ],
+            exports=[BillingGatewayPort],
+        )
+        consumer = Module(
+            name="consumer",
+            providers=[
+                ClassProvider(provide=ConversationRepo, use_class=PgConversationRepo),
+            ],
+            imports=[TeamReaderPort],  # only imports TeamReaderPort, not BillingGatewayPort
+        )
+        db = Database()
+        ctx = ApplicationContext(
+            modules=[identity, billing, consumer],
+            globals=[ValueProvider(provide=Database, use_value=db)],
+        )
+
+        # Can access declared import
+        port = ctx.resolve_within(consumer, TeamReaderPort)
+        assert isinstance(port, PgTeamReader)
+
+        # Cannot access undeclared import
+        with pytest.raises(ModuleBoundaryError):
+            ctx.resolve_within(consumer, BillingGatewayPort)
+
+    def test_imported_port_is_same_singleton(self) -> None:
+        identity = Module(
+            name="identity",
+            providers=[
+                ClassProvider(provide=TeamReader, use_class=PgTeamReader),
+                ExistingProvider(provide=TeamReaderPort, use_existing=TeamReader),
+            ],
+            exports=[TeamReaderPort],
+        )
+        consumer = Module(
+            name="consumer",
+            providers=[],
+            imports=[TeamReaderPort],
+        )
+        db = Database()
+        ctx = ApplicationContext(
+            modules=[identity, consumer],
+            globals=[ValueProvider(provide=Database, use_value=db)],
+        )
+        first = ctx.resolve_within(consumer, TeamReaderPort)
+        second = ctx.resolve_within(consumer, TeamReaderPort)
+        assert first is second
 
 
 class TestUseFactory:
@@ -374,132 +580,22 @@ class TestUseExisting:
             name="identity",
             providers=[
                 ClassProvider(provide=TeamReader, use_class=PgTeamReader),
+                ExistingProvider(provide=TeamReaderPort, use_existing=TeamReader),
             ],
-            exports=[TeamReader],
+            exports=[TeamReaderPort],
         )
         consumer = Module(
             name="consumer",
             providers=[
-                ExistingProvider(provide=UserReader, use_existing=TeamReader),
+                ExistingProvider(provide=UserReader, use_existing=TeamReaderPort),
             ],
-            imports=[identity],
+            imports=[TeamReaderPort],
         )
         ctx = ApplicationContext(
             modules=[identity, consumer],
             globals=[ValueProvider(provide=Database, use_value=db)],
         )
         assert isinstance(ctx.resolve(UserReader), PgTeamReader)
-
-
-class BillingGateway:
-    pass
-
-
-class StripeBillingGateway(BillingGateway):
-    pass
-
-
-class TestForwardRef:
-    def test_forward_ref_resolves_circular(self) -> None:
-
-        identity = Module(
-            name="identity",
-            providers=[
-                ClassProvider(provide=TeamReader, use_class=PgTeamReader),
-            ],
-            exports=[TeamReader],
-            imports=[forward_ref("billing")],
-        )
-        billing = Module(
-            name="billing",
-            providers=[
-                ClassProvider(provide=BillingGateway, use_class=StripeBillingGateway),
-            ],
-            exports=[BillingGateway],
-            imports=[forward_ref("identity")],
-        )
-        db = Database()
-        ctx = ApplicationContext(
-            modules=[identity, billing],
-            globals=[ValueProvider(provide=Database, use_value=db)],
-        )
-
-        assert isinstance(ctx.resolve(TeamReader), PgTeamReader)
-        assert isinstance(ctx.resolve(BillingGateway), StripeBillingGateway)
-
-    def test_forward_ref_logs_warning(self, caplog: pytest.LogCaptureFixture) -> None:
-
-        mod_a = Module(
-            name="a",
-            providers=[ClassProvider(provide=TeamReader, use_class=PgTeamReader)],
-            exports=[TeamReader],
-            imports=[forward_ref("b")],
-        )
-        mod_b = Module(
-            name="b",
-            providers=[
-                ClassProvider(provide=BillingGateway, use_class=StripeBillingGateway),
-            ],
-            exports=[BillingGateway],
-            imports=[forward_ref("a")],
-        )
-        with caplog.at_level(logging.WARNING, logger="spryx_di"):
-            ApplicationContext(
-                modules=[mod_a, mod_b],
-                globals=[ValueProvider(provide=Database, use_value=Database())],
-            )
-        assert "Circular dependency between modules" in caplog.text
-
-    def test_forward_ref_not_found_raises(self) -> None:
-
-        mod = Module(
-            name="test",
-            providers=[],
-            imports=[forward_ref("nonexistent")],
-        )
-        with pytest.raises(ModuleNotFoundError) as exc_info:
-            ApplicationContext(modules=[mod])
-        assert "nonexistent" in str(exc_info.value)
-
-    def test_direct_circular_still_raises(self) -> None:
-
-        mod_a: Module = Module(name="a", providers=[], imports=[])
-        mod_b: Module = Module(name="b", providers=[], imports=[mod_a])
-        mod_a.imports = [mod_b]
-
-        with pytest.raises(CircularModuleError):
-            ApplicationContext(modules=[mod_a, mod_b])
-
-    def test_forward_ref_cross_module_boundary(self) -> None:
-
-        identity = Module(
-            name="identity",
-            providers=[
-                ClassProvider(provide=TeamRepository, use_class=PgTeamRepository),
-                ClassProvider(provide=TeamReader, use_class=PgTeamReader),
-            ],
-            exports=[TeamReader],
-            imports=[forward_ref("billing")],
-        )
-        billing = Module(
-            name="billing",
-            providers=[
-                ClassProvider(provide=BillingGateway, use_class=StripeBillingGateway),
-            ],
-            exports=[BillingGateway],
-            imports=[forward_ref("identity")],
-        )
-        db = Database()
-        ctx = ApplicationContext(
-            modules=[identity, billing],
-            globals=[ValueProvider(provide=Database, use_value=db)],
-        )
-
-        reader = ctx.resolve_within(billing, TeamReader)
-        assert isinstance(reader, PgTeamReader)
-
-        with pytest.raises(ModuleBoundaryError):
-            ctx.resolve_within(billing, TeamRepository)
 
 
 class FakeResource:
@@ -620,31 +716,6 @@ class TestManagedInstances:
         assert obj.closed is True
 
 
-class TestForwardRefIndirectCycle:
-    def test_indirect_forward_ref_cycle_logs_warning(
-        self, caplog: pytest.LogCaptureFixture
-    ) -> None:
-
-        mod_a = Module(
-            name="a",
-            providers=[ClassProvider(provide=TeamReader, use_class=PgTeamReader)],
-            exports=[TeamReader],
-        )
-        mod_b = Module(
-            name="b",
-            providers=[
-                ClassProvider(provide=BillingGateway, use_class=StripeBillingGateway),
-            ],
-            exports=[BillingGateway],
-            imports=[mod_a, forward_ref("a")],
-        )
-        with caplog.at_level(logging.WARNING, logger="spryx_di"):
-            ApplicationContext(
-                modules=[mod_a, mod_b],
-                globals=[ValueProvider(provide=Database, use_value=Database())],
-            )
-
-
 class TestApplicationContextHelpers:
     def test_on_shutdown_delegates_to_container(self) -> None:
         ctx = ApplicationContext(modules=[])
@@ -668,234 +739,3 @@ class TestApplicationContextHelpers:
     def test_container_property(self) -> None:
         ctx = ApplicationContext(modules=[])
         assert ctx.container is not None
-
-
-class TestReExports:
-    def test_reexport_specific_type(self) -> None:
-        child = Module(
-            name="child",
-            providers=[ClassProvider(provide=TeamReader, use_class=PgTeamReader)],
-            exports=[TeamReader],
-        )
-        parent = Module(
-            name="parent",
-            providers=[],
-            imports=[child],
-            exports=[TeamReader],
-        )
-        consumer = Module(
-            name="consumer",
-            providers=[
-                ClassProvider(provide=ConversationRepo, use_class=PgConversationRepo),
-            ],
-            imports=[parent],
-        )
-        db = Database()
-        ctx = ApplicationContext(
-            modules=[child, parent, consumer],
-            globals=[ValueProvider(provide=Database, use_value=db)],
-        )
-
-        handler = ctx.resolve_within(consumer, ListHandler)
-        assert isinstance(handler.reader, PgTeamReader)
-
-    def test_reexport_entire_module(self) -> None:
-        child = Module(
-            name="child",
-            providers=[
-                ClassProvider(provide=TeamReader, use_class=PgTeamReader),
-                ClassProvider(provide=UserReader, use_class=PgUserReader),
-            ],
-            exports=[TeamReader, UserReader],
-        )
-        parent = Module(
-            name="parent",
-            providers=[],
-            imports=[child],
-            exports=[child],
-        )
-        consumer = Module(
-            name="consumer",
-            providers=[],
-            imports=[parent],
-        )
-        db = Database()
-        ctx = ApplicationContext(
-            modules=[child, parent, consumer],
-            globals=[ValueProvider(provide=Database, use_value=db)],
-        )
-
-        reader = ctx.resolve_within(consumer, TeamReader)
-        assert isinstance(reader, PgTeamReader)
-        user_reader = ctx.resolve_within(consumer, UserReader)
-        assert isinstance(user_reader, PgUserReader)
-
-    def test_reexport_module_not_imported_raises(self) -> None:
-        orphan = Module(
-            name="orphan",
-            providers=[ClassProvider(provide=TeamReader, use_class=PgTeamReader)],
-            exports=[TeamReader],
-        )
-        parent = Module(
-            name="parent",
-            providers=[],
-            imports=[],
-            exports=[orphan],
-        )
-        with pytest.raises(ExportWithoutProviderError) as exc_info:
-            ApplicationContext(modules=[parent, orphan])
-        assert "orphan" in str(exc_info.value)
-        assert "does not import" in str(exc_info.value)
-
-    def test_reexport_type_not_in_providers_or_imports_raises(self) -> None:
-        child = Module(
-            name="child",
-            providers=[ClassProvider(provide=UserReader, use_class=PgUserReader)],
-            exports=[UserReader],
-        )
-        parent = Module(
-            name="parent",
-            providers=[],
-            imports=[child],
-            exports=[TeamReader],
-        )
-        with pytest.raises(ExportWithoutProviderError):
-            ApplicationContext(
-                modules=[child, parent],
-                globals=[ValueProvider(provide=Database, use_value=Database())],
-            )
-
-    def test_reexport_boundary_blocks_non_reexported(self) -> None:
-        child = Module(
-            name="child",
-            providers=[
-                ClassProvider(provide=TeamReader, use_class=PgTeamReader),
-                ClassProvider(provide=TeamRepository, use_class=PgTeamRepository),
-            ],
-            exports=[TeamReader, TeamRepository],
-        )
-        parent = Module(
-            name="parent",
-            providers=[],
-            imports=[child],
-            exports=[TeamReader],
-        )
-        consumer = Module(
-            name="consumer",
-            providers=[],
-            imports=[parent],
-        )
-        db = Database()
-        ctx = ApplicationContext(
-            modules=[child, parent, consumer],
-            globals=[ValueProvider(provide=Database, use_value=db)],
-        )
-
-        reader = ctx.resolve_within(consumer, TeamReader)
-        assert isinstance(reader, PgTeamReader)
-
-        with pytest.raises(ModuleBoundaryError):
-            ctx.resolve_within(consumer, TeamRepository)
-
-    def test_reexport_transitive(self) -> None:
-        grandchild = Module(
-            name="grandchild",
-            providers=[ClassProvider(provide=TeamReader, use_class=PgTeamReader)],
-            exports=[TeamReader],
-        )
-        child = Module(
-            name="child",
-            providers=[],
-            imports=[grandchild],
-            exports=[grandchild],
-        )
-        parent = Module(
-            name="parent",
-            providers=[],
-            imports=[child],
-            exports=[child],
-        )
-        consumer = Module(
-            name="consumer",
-            providers=[],
-            imports=[parent],
-        )
-        db = Database()
-        ctx = ApplicationContext(
-            modules=[grandchild, child, parent, consumer],
-            globals=[ValueProvider(provide=Database, use_value=db)],
-        )
-
-        reader = ctx.resolve_within(consumer, TeamReader)
-        assert isinstance(reader, PgTeamReader)
-
-    def test_parent_aggregates_submodules(self) -> None:
-        config_module = Module(
-            name="agent.config",
-            providers=[
-                ClassProvider(provide=TeamRepository, use_class=PgTeamRepository),
-                ClassProvider(provide=TeamReader, use_class=PgTeamReader),
-            ],
-            exports=[TeamReader],
-        )
-        billing_module = Module(
-            name="agent.billing",
-            providers=[
-                ClassProvider(provide=BillingGateway, use_class=StripeBillingGateway),
-            ],
-            exports=[BillingGateway],
-        )
-        agent_module = Module(
-            name="agent",
-            providers=[],
-            imports=[config_module, billing_module],
-            exports=[TeamReader, BillingGateway],
-        )
-        consumer = Module(
-            name="consumer",
-            providers=[
-                ClassProvider(provide=ConversationRepo, use_class=PgConversationRepo),
-            ],
-            imports=[agent_module],
-        )
-        db = Database()
-        ctx = ApplicationContext(
-            modules=[config_module, billing_module, agent_module, consumer],
-            globals=[ValueProvider(provide=Database, use_value=db)],
-        )
-
-        reader = ctx.resolve_within(consumer, TeamReader)
-        assert isinstance(reader, PgTeamReader)
-        gateway = ctx.resolve_within(consumer, BillingGateway)
-        assert isinstance(gateway, StripeBillingGateway)
-
-        with pytest.raises(ModuleBoundaryError):
-            ctx.resolve_within(consumer, TeamRepository)
-
-    def test_reexport_singleton_identity(self) -> None:
-        child = Module(
-            name="child",
-            providers=[ClassProvider(provide=TeamReader, use_class=PgTeamReader)],
-            exports=[TeamReader],
-        )
-        parent = Module(
-            name="parent",
-            providers=[],
-            imports=[child],
-            exports=[child],
-        )
-        consumer = Module(
-            name="consumer",
-            providers=[],
-            imports=[parent],
-        )
-        db = Database()
-        ctx = ApplicationContext(
-            modules=[child, parent, consumer],
-            globals=[ValueProvider(provide=Database, use_value=db)],
-        )
-
-        first = ctx.resolve_within(consumer, TeamReader)
-        second = ctx.resolve_within(consumer, TeamReader)
-        assert first is second
-        assert isinstance(first, PgTeamReader)

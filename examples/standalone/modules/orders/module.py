@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from modules.identity.module import identity_module
-from modules.notifications.module import notifications_module
+from modules.identity.ports import UserReader
+from modules.notifications.ports import NotificationSender
 from modules.orders.adapters import InMemoryOrderRepository
 from modules.orders.ports import OrderRepository
 from spryx_di import ClassProvider, Module
@@ -12,5 +12,5 @@ orders_module = Module(
         ClassProvider(provide=OrderRepository, use_class=InMemoryOrderRepository),
     ],
     exports=[],
-    imports=[identity_module, notifications_module],
+    imports=[UserReader, NotificationSender],
 )
