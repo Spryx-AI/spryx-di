@@ -1,0 +1,29 @@
+tests/unit/test_module.py
+  e6c07cdf3f4e9fc7 83-87,90
+spryx_di/provider.py
+  e6c07cdf3f4e9fc7 28,30-33,36,39-41
+spryx_di/module.py
+  e6c07cdf3f4e9fc7 76,212,217,231,234
+tests/unit/test_events.py
+  e6c07cdf3f4e9fc7 10,138,158-159,177-180,198-201,235-236,329,343-346,364-367,399-400,440-441,469-472
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.5",
+  "base_commit_sha": "6efca8f5b7a62f6d1ddf2e7d1900f27281a4e672",
+  "prompts": {
+    "e6c07cdf3f4e9fc7": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a6fdbfe4-06a5-46ae-ad48-0c0516e144a6",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Pedro Cantidio",
+      "messages": [],
+      "total_additions": 60,
+      "total_deletions": 36,
+      "accepted_lines": 53,
+      "overriden_lines": 0
+    }
+  }
+}
