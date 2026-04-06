@@ -1,6 +1,44 @@
 # CHANGELOG
 
 
+## v1.2.0 (2026-04-06)
+
+### Features
+
+- **events**: Typed event bus with pluggable backends and serialization
+  ([#6](https://github.com/Spryx-AI/spryx-di/pull/6),
+  [`4f9249d`](https://github.com/Spryx-AI/spryx-di/commit/4f9249da7b19fef0ea45c1176445dd9de4ae362f))
+
+* feat(events): add typed event bus with pluggable backends
+
+Introduce a generic EventHandler[E] base class, EventBus mediator with sync/async dispatch,
+  EventListener for declarative registration in modules, and AsyncEventBackend protocol. Ships
+  InMemoryEventBackend for testing and CeleryEventBackend for production. ApplicationContext
+  validates listeners at boot and auto-registers EventBus as singleton.
+
+* refactor(events): pluggable serialization, strict typing, celery worker registration
+
+- Add serialize_event() supporting dataclass, Pydantic, dict, and to_dict() -
+  AsyncEventBackend.dispatch() now receives dict payload instead of raw object - Replace all Any
+  with proper types (TypeVar, object, Callable, raw generics) - CeleryEventBackend: TYPE_CHECKING
+  import, optional dep, register_worker() - ApplicationContext: event/handler registries, typed
+  resolve/shutdown/hooks - EventBus: fail loud on ASYNC dispatch without backend - Add event_bus
+  example with sync billing + async notifications
+
+* chore: add openspec change artifacts for typed-event-bus
+
+* fix: async dispatch, qualified registry keys, and deprecated asyncio usage
+
+- Wrap CeleryEventBackend.send_task in asyncio.to_thread() to avoid blocking the event loop during
+  broker I/O - Use fully qualified names (module.qualname) as registry keys for events and handlers
+  to prevent silent collisions across packages - Replace deprecated
+  asyncio.get_event_loop().run_until_complete() with asyncio.run() in test_events.py (Python ≥3.11)
+
+---------
+
+Co-authored-by: cubic-dev-ai[bot] <1082092+cubic-dev-ai[bot]@users.noreply.github.com>
+
+
 ## v1.1.1 (2026-04-04)
 
 ### Bug Fixes
