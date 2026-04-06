@@ -80,10 +80,14 @@ class TestModuleDefinition:
         assert len(module.providers) == 1
         assert module.exports == [TeamReader]
 
-    def test_bare_type_as_provider(self) -> None:
+    def test_class_provider_defaults_use_class_to_provide(self) -> None:
+        p = ClassProvider(provide=PgTeamReader)
+        assert p.use_class is PgTeamReader
+        assert p.scope == Scope.SINGLETON
+
         module = Module(
             name="test",
-            providers=[PgTeamReader],
+            providers=[ClassProvider(provide=PgTeamReader)],
         )
         assert len(module.providers) == 1
 

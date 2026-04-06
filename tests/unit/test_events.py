@@ -7,6 +7,7 @@ import pytest
 
 from spryx_di import (
     ApplicationContext,
+    ClassProvider,
     EventBus,
     EventHandler,
     EventListener,
@@ -134,7 +135,7 @@ class TestEventBusSyncDispatch:
                     name="orders",
                     providers=[
                         ValueProvider(provide=NotificationService, use_value=notifications),
-                        OnOrderPlaced,
+                        ClassProvider(provide=OnOrderPlaced),
                     ],
                     listeners=[
                         EventListener(event=OrderPlaced, handler=OnOrderPlaced),
@@ -154,8 +155,8 @@ class TestEventBusSyncDispatch:
                     name="orders",
                     providers=[
                         ValueProvider(provide=NotificationService, use_value=notifications),
-                        OnOrderPlaced,
-                        OnOrderPlacedBilling,
+                        ClassProvider(provide=OnOrderPlaced),
+                        ClassProvider(provide=OnOrderPlacedBilling),
                     ],
                     listeners=[
                         EventListener(event=OrderPlaced, handler=OnOrderPlaced),
@@ -173,7 +174,10 @@ class TestEventBusSyncDispatch:
             modules=[
                 Module(
                     name="orders",
-                    providers=[OnOrderPlaced, NotificationService],
+                    providers=[
+                        ClassProvider(provide=OnOrderPlaced),
+                        ClassProvider(provide=NotificationService),
+                    ],
                     listeners=[
                         EventListener(event=OrderPlaced, handler=OnOrderPlaced),
                     ],
@@ -191,7 +195,10 @@ class TestEventBusAsyncDispatch:
             modules=[
                 Module(
                     name="orders",
-                    providers=[OnOrderPlaced, NotificationService],
+                    providers=[
+                        ClassProvider(provide=OnOrderPlaced),
+                        ClassProvider(provide=NotificationService),
+                    ],
                     listeners=[
                         EventListener(
                             event=OrderPlaced,
@@ -225,8 +232,8 @@ class TestEventBusAsyncDispatch:
                     name="orders",
                     providers=[
                         ValueProvider(provide=NotificationService, use_value=notifications),
-                        OnOrderPlaced,
-                        OnOrderPlacedBilling,
+                        ClassProvider(provide=OnOrderPlaced),
+                        ClassProvider(provide=OnOrderPlacedBilling),
                     ],
                     listeners=[
                         EventListener(
@@ -319,7 +326,7 @@ class TestBootValidation:
                 modules=[
                     Module(
                         name="bad",
-                        providers=[NotAHandler],
+                        providers=[ClassProvider(provide=NotAHandler)],
                         listeners=[
                             EventListener(event=OrderPlaced, handler=NotAHandler),  # type: ignore[arg-type]
                         ],
@@ -333,7 +340,10 @@ class TestBootValidation:
                 modules=[
                     Module(
                         name="orders",
-                        providers=[OnOrderPlaced, NotificationService],
+                        providers=[
+                            ClassProvider(provide=OnOrderPlaced),
+                            ClassProvider(provide=NotificationService),
+                        ],
                         listeners=[
                             EventListener(
                                 event=OrderPlaced,
@@ -351,7 +361,10 @@ class TestBootValidation:
             modules=[
                 Module(
                     name="orders",
-                    providers=[OnOrderPlaced, NotificationService],
+                    providers=[
+                        ClassProvider(provide=OnOrderPlaced),
+                        ClassProvider(provide=NotificationService),
+                    ],
                     listeners=[
                         EventListener(
                             event=OrderPlaced,
@@ -383,8 +396,8 @@ class TestIntegration:
             name="orders",
             providers=[
                 ValueProvider(provide=NotificationService, use_value=notifications),
-                OnOrderPlaced,
-                OnOrderCancelled,
+                ClassProvider(provide=OnOrderPlaced),
+                ClassProvider(provide=OnOrderCancelled),
             ],
             exports=[NotificationService],
             listeners=[
@@ -424,8 +437,8 @@ class TestIntegration:
                     name="orders",
                     providers=[
                         ValueProvider(provide=NotificationService, use_value=NotificationService()),
-                        OnOrderPlaced,
-                        OnOrderCancelled,
+                        ClassProvider(provide=OnOrderPlaced),
+                        ClassProvider(provide=OnOrderCancelled),
                     ],
                     listeners=[
                         EventListener(event=OrderPlaced, handler=OnOrderPlaced),
@@ -453,7 +466,10 @@ class TestIntegration:
             modules=[
                 Module(
                     name="orders",
-                    providers=[OnOrderPlaced, NotificationService],
+                    providers=[
+                        ClassProvider(provide=OnOrderPlaced),
+                        ClassProvider(provide=NotificationService),
+                    ],
                     listeners=[
                         EventListener(event=OrderPlaced, handler=OnOrderPlaced),
                     ],

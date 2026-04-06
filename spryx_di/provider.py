@@ -25,11 +25,20 @@ class Scope(Enum):
 
 @dataclass(frozen=True)
 class ClassProvider:
-    """Provide a dependency via auto-wired class instantiation."""
+    """Provide a dependency via auto-wired class instantiation.
+
+    When *use_class* is omitted it defaults to *provide*, so
+    ``ClassProvider(provide=Foo)`` is equivalent to
+    ``ClassProvider(provide=Foo, use_class=Foo)``.
+    """
 
     provide: type
-    use_class: type
+    use_class: type | None = None
     scope: Scope = Scope.SINGLETON
+
+    def __post_init__(self) -> None:
+        if self.use_class is None:
+            object.__setattr__(self, "use_class", self.provide)
 
 
 @dataclass(frozen=True)
