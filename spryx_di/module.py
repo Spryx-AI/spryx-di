@@ -42,7 +42,7 @@ class Module:
     """Declarative module definition."""
 
     name: str
-    providers: list[Provider | type] = field(default_factory=list)
+    providers: list[Provider] = field(default_factory=list)
     exports: list[type | Module] = field(default_factory=list)
     imports: list[Module | ForwardRef] = field(default_factory=list)
     on_destroy: OnDestroyHook | None = None
@@ -73,16 +73,11 @@ def _register_provider(container: Container, provider: Provider) -> None:
         case ExistingProvider(provide=iface, use_existing=target):
             container.factory(iface, lambda c, _t=target: c.resolve(_t))
         case ClassProvider(provide=iface, use_class=impl, scope=scope):
+            assert impl is not None  # guaranteed by __post_init__
             if scope == Scope.SINGLETON:
                 container.singleton(iface, impl)
             else:
                 container.register(iface, impl)
-
-
-def _normalize_provider(item: Provider | type) -> Provider:
-    if isinstance(item, type):
-        return ClassProvider(provide=item, use_class=item)
-    return item
 
 
 def _detect_circular_modules(
@@ -198,7 +193,7 @@ class ApplicationContext:
             self._resolved_imports[module.name] = resolved
 
         for module in self._modules:
-            provider_types = {_normalize_provider(p).provide for p in module.providers}
+            provider_types = {p.provide for p in module.providers}
             imported_modules = {id(imp) for imp in self._resolved_imports[module.name]}
             imported_export_types: set[type] = set()
             for imp in self._resolved_imports[module.name]:
@@ -214,12 +209,12 @@ class ApplicationContext:
         _detect_circular_modules(self._modules, self._resolved_imports, self._forward_ref_edges)
 
         for item in self._globals:
-            _register_provider(self._container, _normalize_provider(item))
+            _register_provider(self._container, item)
 
         for module in self._modules:
             self._exported_types[module.name] = _compute_effective_exports(module)
             for item in module.providers:
-                provider = _normalize_provider(item)
+                provider = item
                 _register_provider(self._container, provider)
                 self._provider_to_module[provider.provide] = module.name
 
@@ -233,10 +228,10 @@ class ApplicationContext:
         mod_container = Container()
 
         for item in self._globals:
-            _register_provider(mod_container, _normalize_provider(item))
+            _register_provider(mod_container, item)
 
         for item in module.providers:
-            _register_provider(mod_container, _normalize_provider(item))
+            _register_provider(mod_container, item)
 
         for imp in self._resolved_imports[module.name]:
             for export_type in self._exported_types.get(imp.name, set()):
