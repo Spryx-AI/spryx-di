@@ -1,0 +1,33 @@
+spryx_di/analysis.py
+  a97dacec6a5c8cbb 1-67
+spryx_di/cli.py
+  a97dacec6a5c8cbb 1-28,30-43,45-147
+spryx_di/module.py
+  a97dacec6a5c8cbb 82-96,203-204,263-264,266
+pyproject.toml
+  a97dacec6a5c8cbb 24-26,28,39,94
+tests/unit/test_module.py
+  a97dacec6a5c8cbb 804,822,846,982
+tests/unit/test_analysis.py
+  a97dacec6a5c8cbb 1-138
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.5",
+  "base_commit_sha": "33065d40abb14d8d7659997511b68cd1141ab172",
+  "prompts": {
+    "a97dacec6a5c8cbb": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7f524e90-9a0e-4813-8e3a-9ad7a36a8e9b",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Pedro Cantidio",
+      "messages": [],
+      "total_additions": 404,
+      "total_deletions": 88,
+      "accepted_lines": 380,
+      "overriden_lines": 2
+    }
+  }
+}
