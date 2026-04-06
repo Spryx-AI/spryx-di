@@ -3,7 +3,13 @@ from __future__ import annotations
 import importlib
 from typing import Annotated
 
-import typer
+try:
+    import typer
+except ImportError:
+    import sys
+
+    print("Error: spryx-di CLI requires typer. Install with: pip install spryx-di[cli]")
+    sys.exit(1)
 
 from spryx_di.analysis import analyze
 from spryx_di.module import ApplicationContext, _normalize_provider
@@ -37,6 +43,9 @@ def _load_context(app_path: str) -> ApplicationContext:
     func = getattr(mod, func_name, None)
     if func is None:
         typer.echo(f"Error: '{module_path}' has no attribute '{func_name}'")
+        raise typer.Exit(1)
+    if not callable(func):
+        typer.echo(f"Error: '{module_path}.{func_name}' is not callable")
         raise typer.Exit(1)
     ctx = func()
     if not isinstance(ctx, ApplicationContext):
