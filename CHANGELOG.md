@@ -1,6 +1,21 @@
 # CHANGELOG
 
 
+## v1.3.0 (2026-04-06)
+
+### Features
+
+- **provider**: Make ClassProvider.use_class optional and enforce explicit providers
+  ([#7](https://github.com/Spryx-AI/spryx-di/pull/7),
+  [`ff39da3`](https://github.com/Spryx-AI/spryx-di/commit/ff39da310a3640e7f74c7f49bfabe412a7daef9a))
+
+ClassProvider.use_class now defaults to the value of provide, enabling ClassProvider(provide=Foo) as
+  shorthand for ClassProvider(provide=Foo, use_class=Foo).
+
+Module.providers no longer accepts bare types — all entries must be an explicit Provider instance
+  for clarity and consistency.
+
+
 ## v1.2.0 (2026-04-06)
 
 ### Features
