@@ -1,0 +1,37 @@
+.pre-commit-config.yaml
+  a97dacec6a5c8cbb 17,25,33
+spryx_di/errors.py
+  a97dacec6a5c8cbb 78-79,81,84-87,91-92,97,101,107,113,115,130-131,140,144
+spryx_di/module.py
+  a97dacec6a5c8cbb 3-5,13,17,33-34,47,58-81,129,136,138-154,156,158-160,162,166-167,184-187,189,207-210,214,223-224,233,246-307,354,377-379
+tests/unit/test_events.py
+  a97dacec6a5c8cbb 398
+spryx_di/provider.py
+  a97dacec6a5c8cbb 27-28,42-43,52-53,62-63,67-71
+tests/unit/test_module.py
+  a97dacec6a5c8cbb 8,15,17,76,80,86,97,108,116-124,133,139,147,153-157,159-160,162-166,175-176,192,203-204,209,217,225,229-250,252-255,265,273,288-289,293,295,300,305,311,314,322-335,342,346,355,357,362,364,371,374,377,400-401,405-406,410-411,413,418,423,431,441-442,447,455,467,472,480,489,497,501,505,510,516,537,592-593,626,634,673,783-1054
+spryx_di/ext/fastapi.py
+  a97dacec6a5c8cbb 10-11,16-18,24-26,35-37
+spryx_di/__init__.py
+  a97dacec6a5c8cbb 7,12,17,36,44,59,66,70
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.5",
+  "base_commit_sha": "ef5714a911e0381b631b0175ec9f40d8648f2988",
+  "prompts": {
+    "a97dacec6a5c8cbb": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7f524e90-9a0e-4813-8e3a-9ad7a36a8e9b",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Pedro Cantidio",
+      "messages": [],
+      "total_additions": 658,
+      "total_deletions": 229,
+      "accepted_lines": 607,
+      "overriden_lines": 0
+    }
+  }
+}
