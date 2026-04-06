@@ -1,6 +1,20 @@
 # CHANGELOG
 
 
+## v1.3.1 (2026-04-06)
+
+### Refactoring
+
+- **module**: Replace module-reference imports with port-based imports
+  ([#8](https://github.com/Spryx-AI/spryx-di/pull/8),
+  [`2d27c3a`](https://github.com/Spryx-AI/spryx-di/commit/2d27c3a0429abefa73236252d61de9fe1b5a59fa))
+
+Modules no longer reference each other directly. Imports are now types (Protocols/ABCs) that the
+  framework matches automatically against exports from other modules at boot time. Removes
+  ForwardRef, forward_ref, module re-exports, and old cycle detection in favor of export registry,
+  import validation, and implicit dependency graph cycle detection.
+
+
 ## v1.3.0 (2026-04-06)
 
 ### Features
