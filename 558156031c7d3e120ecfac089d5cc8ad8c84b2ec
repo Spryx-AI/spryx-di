@@ -1,0 +1,37 @@
+examples/standalone/modules/notifications/module.py
+  a25739db01e60e7f 3,6,14
+examples/standalone/modules/orders/module.py
+  a25739db01e60e7f 3-4,15
+examples/standalone/modules/identity/module.py
+  a25739db01e60e7f 5
+spryx_di/module.py
+  a25739db01e60e7f 9-10,15,42-44,49-52,54,92,101,108,110-119,121,123,126-139,141,143,146,150,152-154,156,160-164,167,169,171,173,175-178,182-212,256-257,260-267
+examples/standalone/app/main.py
+  a25739db01e60e7f 6,37
+spryx_di/errors.py
+  a25739db01e60e7f 4-5,8,33,42,56,78-79,84-89,92-93,95-100,102-106,108-110,114-115,117-120,122-124,128-129,131-133,135-138,142,153,167
+tests/unit/test_module.py
+  a25739db01e60e7f 6,8,16,68-77,79-80,82-90,177-178,183,185,192,200-202,212,214,221,249-260,262-277,279-280,282-283,286-298,300-331,337,339-366,370-481,583,585,590,592
+spryx_di/__init__.py
+  a25739db01e60e7f 5,7,13,37,41,60,62
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.5",
+  "base_commit_sha": "558156031c7d3e120ecfac089d5cc8ad8c84b2ec",
+  "prompts": {
+    "a25739db01e60e7f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "efbea19e-3694-4a42-9a38-c10aa7fabdee",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Pedro Cantidio",
+      "messages": [],
+      "total_additions": 450,
+      "total_deletions": 640,
+      "accepted_lines": 438,
+      "overriden_lines": 0
+    }
+  }
+}
