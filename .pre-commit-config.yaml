@@ -14,7 +14,7 @@ repos:
     hooks:
       - id: ruff-format-check
         name: Check code formatting with ruff
-        entry: uv run ruff
+        entry: uv run --no-sync ruff
         args: [format, --check, --diff, .]
         language: system
         types: [python]
@@ -22,7 +22,7 @@ repos:
 
       - id: ruff-lint-check
         name: Lint code with ruff
-        entry: uv run ruff
+        entry: uv run --no-sync ruff
         args: [check, .]
         language: system
         types: [python]
@@ -30,7 +30,7 @@ repos:
 
       - id: typecheck
         name: Type check with ty
-        entry: uv run ty check
+        entry: uv run --no-sync ty check
         args: [--exclude, tests, --exclude, "**/tests/**", --exclude, "**/examples/**"]
         language: system
         types: [python]

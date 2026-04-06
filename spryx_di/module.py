@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import logging
+import sys
+import typing
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, TypeVar
@@ -7,12 +10,11 @@ from typing import TYPE_CHECKING, TypeVar
 from spryx_di.container import Container, ScopedContainer
 from spryx_di.errors import (
     AmbiguousExportError,
-    CircularImportError,
-    ExportWithoutProviderError,
+    CircularDependencyInModulesError,
     InvalidListenerError,
     MissingEventBackendError,
     ModuleBoundaryError,
-    UnresolvedImportError,
+    UnresolvedDependencyError,
 )
 from spryx_di.provider import (
     ClassProvider,
@@ -28,6 +30,8 @@ if TYPE_CHECKING:
     from spryx_di.events.handler import EventHandler
     from spryx_di.events.listener import EventListener
 
+logger = logging.getLogger("spryx_di")
+
 T = TypeVar("T")
 
 OnDestroyHook = Callable[[Container], Awaitable[None]] | Callable[[Container], None]
@@ -40,8 +44,7 @@ class Module:
 
     name: str
     providers: list[Provider | type] = field(default_factory=list)
-    exports: list[type] = field(default_factory=list)
-    imports: list[type] = field(default_factory=list)
+    dependencies: list[type] = field(default_factory=list)
     on_destroy: OnDestroyHook | None = None
     listeners: list[EventListener] = field(default_factory=list)
 
@@ -50,6 +53,45 @@ def _normalize_provider(p: Provider | type) -> Provider:
     if isinstance(p, type):
         return ClassProvider(provide=p)
     return p
+
+
+def _get_init_hint_types(cls: type, extra_ns: dict[str, type] | None = None) -> set[type]:
+    init = getattr(cls, "__init__", None)
+    if init is None:
+        return set()
+    try:
+        raw = typing.get_type_hints(init)
+    except Exception:
+        mod = sys.modules.get(cls.__module__)
+        globalns: dict[str, object] = dict(vars(mod)) if mod else {}
+        if extra_ns:
+            globalns.update(extra_ns)
+        try:
+            raw = typing.get_type_hints(init, globalns=globalns)
+        except Exception:
+            return set()
+    raw.pop("return", None)
+    result: set[type] = set()
+    for hint in raw.values():
+        unwrapped = Container._unwrap_optional(hint)
+        if unwrapped is not None:
+            result.add(unwrapped)
+    return result
+
+
+def _collect_needed_types(module: Module) -> set[type]:
+    extra_ns = {t.__name__: t for t in module.dependencies}
+    needed: set[type] = set()
+    for item in module.providers:
+        provider = _normalize_provider(item)
+        extra_ns[provider.provide.__name__] = provider.provide
+    for item in module.providers:
+        provider = _normalize_provider(item)
+        if isinstance(provider, ClassProvider) and provider.use_class is not None:
+            needed.update(_get_init_hint_types(provider.use_class, extra_ns))
+        elif isinstance(provider, ExistingProvider):
+            needed.add(provider.use_existing)
+    return needed
 
 
 def _register_provider(container: Container, provider: Provider) -> None:
@@ -99,42 +141,48 @@ class ApplicationContext:
         self._module_containers: dict[str, Container] = {}
         self._provider_to_module: dict[type, str] = {}
         self._export_registry: dict[type, str] = {}
+        self._public_types: set[type] = set()
         self._managed_instances: list[object] = []
         self._event_registry: dict[str, type] = {}
         self._handler_registry: dict[str, type[EventHandler]] = {}
         self._boot()
 
     def _boot(self) -> None:
-        # 1. Build export registry
+        # 1. Build export registry and public set from providers
         for module in self._modules:
-            for export_type in module.exports:
-                if export_type in self._export_registry:
-                    raise AmbiguousExportError(
-                        export_type,
-                        self._export_registry[export_type],
-                        module.name,
-                    )
-                self._export_registry[export_type] = module.name
+            for item in module.providers:
+                provider = _normalize_provider(item)
+                if provider.export:
+                    if provider.provide in self._export_registry:
+                        raise AmbiguousExportError(
+                            provider.provide,
+                            self._export_registry[provider.provide],
+                            module.name,
+                        )
+                    self._export_registry[provider.provide] = module.name
+                if provider.public:
+                    self._public_types.add(provider.provide)
 
-        # 2. Validate every export has a provider in its module
-        for module in self._modules:
-            provider_types = {_normalize_provider(p).provide for p in module.providers}
-            for export in module.exports:
-                if export not in provider_types:
-                    raise ExportWithoutProviderError(module.name, export)
+        # 2. Collect global types for dependency validation
+        global_types: set[type] = set()
+        for item in self._globals:
+            provider = _normalize_provider(item)
+            global_types.add(provider.provide)
+            if provider.public:
+                self._public_types.add(provider.provide)
 
-        # 3. Validate every import is satisfied by some export
+        # 3. Validate every dependency is satisfied by some export or global
         for module in self._modules:
-            for import_type in module.imports:
-                if import_type not in self._export_registry:
-                    raise UnresolvedImportError(
+            for dep_type in module.dependencies:
+                if dep_type not in self._export_registry and dep_type not in global_types:
+                    raise UnresolvedDependencyError(
                         module_name=module.name,
-                        import_type=import_type,
+                        dependency_type=dep_type,
                         available_exports=self._export_registry,
                     )
 
-        # 4. Detect cycles in the import graph
-        self._detect_import_cycles(self._modules, self._export_registry)
+        # 4. Detect cycles in the dependency graph
+        self._detect_dependency_cycles(self._modules, self._export_registry)
 
         # 5. Register globals
         for item in self._globals:
@@ -149,18 +197,19 @@ class ApplicationContext:
 
         # 7. Build per-module containers
         for module in self._modules:
-            self._module_containers[module.name] = self._build_module_container(
-                module, self._export_registry
-            )
+            self._module_containers[module.name] = self._build_module_container(module)
 
-        # 8. Event system + managed instances
+        # 8. Warn about dead code
+        for warning in self.analyze():
+            logger.warning(warning)
+
+        # 9. Event system + managed instances
         self._boot_event_system()
         self._collect_managed_instances()
 
     def _build_module_container(
         self,
         module: Module,
-        export_registry: dict[type, str],
     ) -> Container:
         mod_container = Container()
 
@@ -172,14 +221,14 @@ class ApplicationContext:
         for item in module.providers:
             _register_provider(mod_container, _normalize_provider(item))
 
-        # Imports — resolve each port from the main container
-        for import_type in module.imports:
-            instance = self._container.resolve(import_type)
-            mod_container.instance(import_type, instance)
+        # Dependencies — resolve each port from the main container
+        for dep_type in module.dependencies:
+            instance = self._container.resolve(dep_type)
+            mod_container.instance(dep_type, instance)
 
         return mod_container
 
-    def _detect_import_cycles(
+    def _detect_dependency_cycles(
         self,
         modules: list[Module],
         export_registry: dict[type, str],
@@ -188,8 +237,8 @@ class ApplicationContext:
         depends_on: dict[str, set[str]] = {}
         for module in modules:
             deps: set[str] = set()
-            for import_type in module.imports:
-                provider_module = export_registry.get(import_type)
+            for dep_type in module.dependencies:
+                provider_module = export_registry.get(dep_type)
                 if provider_module and provider_module != module.name:
                     deps.add(provider_module)
             depends_on[module.name] = deps
@@ -198,7 +247,7 @@ class ApplicationContext:
         def _visit(name: str, path: list[str], visited: set[str]) -> None:
             if name in path:
                 cycle = path[path.index(name) :] + [name]
-                raise CircularImportError(cycle)
+                raise CircularDependencyInModulesError(cycle)
             if name in visited:
                 return
             path.append(name)
@@ -210,6 +259,11 @@ class ApplicationContext:
         visited: set[str] = set()
         for module in modules:
             _visit(module.name, [], visited)
+
+    def analyze(self) -> list[str]:
+        from spryx_di.analysis import analyze
+
+        return analyze(self)
 
     def _boot_event_system(self) -> None:
         from spryx_di.events.bus import EventBus
@@ -257,7 +311,7 @@ class ApplicationContext:
             raise ValueError(msg)
 
         owner = self._provider_to_module.get(type_)
-        if owner is not None and owner != module.name and type_ not in set(module.imports):
+        if owner is not None and owner != module.name and type_ not in set(module.dependencies):
             owner_exports = {t for t, m in self._export_registry.items() if m == owner}
             raise ModuleBoundaryError(
                 type_=type_,
@@ -279,6 +333,9 @@ class ApplicationContext:
     @property
     def handler_registry(self) -> dict[str, type[EventHandler]]:
         return self._handler_registry
+
+    def is_public(self, type_: type) -> bool:
+        return type_ in self._public_types
 
     def _collect_managed_instances(self) -> None:
         seen: set[int] = set()

@@ -21,7 +21,11 @@ classifiers = [
 
 dependencies = []
 
+[project.scripts]
+spryx-di = "spryx_di.cli:app"
+
 [project.optional-dependencies]
+cli = ["typer>=0.9"]
 celery = ["celery>=5.0"]
 fastapi = ["fastapi==0.135.3"]
 settings = ["pydantic-settings==2.13.1"]
@@ -32,6 +36,7 @@ dev = [
     "fastapi==0.135.3",
     "httpx==0.28.1",
     "pydantic-settings==2.13.1",
+    "typer>=0.9",
     "ty==0.0.28",
     "pytest-cov==6.2.1",
     "ruff==0.15.9",
@@ -86,7 +91,7 @@ unresolved-import = "ignore"
 
 [tool.coverage.run]
 source = ["spryx_di"]
-omit = ["spryx_di/ext/*"]
+omit = ["spryx_di/ext/*", "spryx_di/cli.py"]
 
 [tool.coverage.report]
 fail_under = 90
