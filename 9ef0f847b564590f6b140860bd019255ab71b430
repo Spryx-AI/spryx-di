@@ -1,0 +1,23 @@
+spryx_di/ext/fastapi.py
+  a97dacec6a5c8cbb 16-22
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.5",
+  "base_commit_sha": "9ef0f847b564590f6b140860bd019255ab71b430",
+  "prompts": {
+    "a97dacec6a5c8cbb": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7f524e90-9a0e-4813-8e3a-9ad7a36a8e9b",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Pedro Cantidio",
+      "messages": [],
+      "total_additions": 7,
+      "total_deletions": 3,
+      "accepted_lines": 7,
+      "overriden_lines": 0
+    }
+  }
+}
