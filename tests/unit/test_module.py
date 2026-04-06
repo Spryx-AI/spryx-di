@@ -653,7 +653,7 @@ class TestApplicationContextHelpers:
         ctx.on_shutdown(hook)
         import asyncio
 
-        asyncio.get_event_loop().run_until_complete(ctx.shutdown())
+        asyncio.run(ctx.shutdown())
         assert called is True
 
     def test_create_scope(self) -> None:

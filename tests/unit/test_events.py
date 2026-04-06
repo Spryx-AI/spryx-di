@@ -435,6 +435,7 @@ class TestIntegration:
             ],
             event_backend=backend,
         )
+
         def _qn(cls: type) -> str:
             return f"{cls.__module__}.{cls.__qualname__}"
 
