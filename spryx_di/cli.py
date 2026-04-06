@@ -12,6 +12,7 @@ except ImportError:
     sys.exit(1)
 
 from spryx_di.analysis import analyze
+from spryx_di.errors import SpryxDIError
 from spryx_di.module import ApplicationContext, _normalize_provider
 
 app = typer.Typer(name="spryx-di", no_args_is_help=True)
@@ -47,7 +48,11 @@ def _load_context(app_path: str) -> ApplicationContext:
     if not callable(func):
         typer.echo(f"Error: '{module_path}.{func_name}' is not callable")
         raise typer.Exit(1)
-    ctx = func()
+    try:
+        ctx = func()
+    except SpryxDIError as e:
+        typer.echo(f"✗ {type(e).__name__}: {e}")
+        raise typer.Exit(1) from None
     if not isinstance(ctx, ApplicationContext):
         typer.echo(
             f"Error: '{app_path}' returned {type(ctx).__name__}, expected ApplicationContext"
@@ -78,12 +83,13 @@ AppOption = Annotated[
 
 @app.command()
 def check(app_path: AppOption = None) -> None:
-    """Run module analysis and report warnings."""
+    """Run module analysis and report errors and warnings."""
+    typer.echo("spryx-di module analysis")
+    typer.echo("========================\n")
+
     ctx = _resolve_context(app_path)
 
     total_providers = sum(len(m.providers) for m in ctx._modules)
-    typer.echo("spryx-di module analysis")
-    typer.echo("========================\n")
     typer.echo(f"Scanning... {len(ctx._modules)} modules, {total_providers} providers\n")
 
     warnings = analyze(ctx)
