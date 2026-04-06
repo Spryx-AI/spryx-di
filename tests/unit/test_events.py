@@ -395,11 +395,10 @@ class TestIntegration:
         order_module = Module(
             name="orders",
             providers=[
-                ValueProvider(provide=NotificationService, use_value=notifications),
+                ValueProvider(provide=NotificationService, use_value=notifications, export=True),
                 ClassProvider(provide=OnOrderPlaced),
                 ClassProvider(provide=OnOrderCancelled),
             ],
-            exports=[NotificationService],
             listeners=[
                 EventListener(
                     event=OrderPlaced,

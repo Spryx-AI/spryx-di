@@ -7,17 +7,23 @@ from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoin
 from starlette.responses import Response
 
 from spryx_di.container import Container
+from spryx_di.errors import PublicAccessError
+from spryx_di.module import ApplicationContext
 
 T = TypeVar("T")
 
 
-def configure(app: FastAPI, container: Container) -> None:
-    app.state.container = container
+def configure(app: FastAPI, ctx: ApplicationContext) -> None:
+    app.state.container = ctx.container
+    app.state.app_context = ctx
     app.add_middleware(RequestScopeMiddleware)
 
 
 def Inject(cls: type[T]) -> Any:
     def _resolve(request: Request) -> T:
+        app_ctx: ApplicationContext | None = getattr(request.app.state, "app_context", None)
+        if app_ctx is not None and not app_ctx.is_public(cls):
+            raise PublicAccessError(cls)
         container: Container = request.app.state.container
         return container.resolve(cls)
 
@@ -26,6 +32,9 @@ def Inject(cls: type[T]) -> Any:
 
 def ScopedInject(cls: type[T]) -> Any:
     def _resolve(request: Request) -> T:
+        app_ctx: ApplicationContext | None = getattr(request.app.state, "app_context", None)
+        if app_ctx is not None and not app_ctx.is_public(cls):
+            raise PublicAccessError(cls)
         scope: Container = request.state.scope
         return scope.resolve(cls)
 

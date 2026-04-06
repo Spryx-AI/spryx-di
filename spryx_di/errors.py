@@ -75,40 +75,42 @@ class ModuleBoundaryError(SpryxDIError):
         )
 
 
-class ExportWithoutProviderError(SpryxDIError):
-    """Raised when a module exports a type that is not in its providers."""
+class PublicAccessError(SpryxDIError):
+    """Raised when Inject() tries to resolve a type that is not public."""
 
-    def __init__(self, module_name: str, type_: type) -> None:
-        self.module_name = module_name
+    def __init__(self, type_: type) -> None:
         self.type_ = type_
-        type_name = getattr(type_, "__name__", str(type_))
         super().__init__(
-            f"Module '{module_name}' exports '{type_name}' "
-            f"but it is not in its providers.\n\n"
-            f"  Hint: Add a provider for {type_name}."
+            f"'{type_.__name__}' is not public.\n"
+            f"Only providers marked with public=True can be used in Inject().\n\n"
+            f"  Hint: If this is a use case or query handler for a router endpoint,\n"
+            f"  add public=True to its provider in the module definition."
         )
 
 
-class UnresolvedImportError(SpryxDIError):
-    """Module requires a port that no module exports."""
+class UnresolvedDependencyError(SpryxDIError):
+    """Module depends on a port that no module exports."""
 
     def __init__(
         self,
         module_name: str,
-        import_type: type,
+        dependency_type: type,
         available_exports: dict[type, str],
     ) -> None:
         self.module_name = module_name
-        self.import_type = import_type
+        self.dependency_type = dependency_type
         self.available_exports = available_exports
         available = "\n".join(
             f"  {t.__name__} (exported by '{m}')" for t, m in available_exports.items()
         )
         super().__init__(
-            f"Module '{module_name}' requires '{import_type.__name__}' "
+            f"Module '{module_name}' depends on '{dependency_type.__name__}' "
             f"but no module exports it.\n\n"
             f"Available exports:\n{available}"
         )
+
+
+UnresolvedImportError = UnresolvedDependencyError
 
 
 class AmbiguousExportError(SpryxDIError):
@@ -125,8 +127,8 @@ class AmbiguousExportError(SpryxDIError):
         )
 
 
-class CircularImportError(SpryxDIError):
-    """Circular dependency detected in the module import graph."""
+class CircularDependencyInModulesError(SpryxDIError):
+    """Circular dependency detected in the module dependency graph."""
 
     def __init__(self, cycle: list[str]) -> None:
         self.cycle = cycle
@@ -135,8 +137,11 @@ class CircularImportError(SpryxDIError):
             f"Circular dependency detected: {chain}\n\n"
             f"Hint: Use the event bus to break the cycle. "
             f"One of the modules should publish an event instead of "
-            f"importing a port from the other."
+            f"depending on a port from the other."
         )
+
+
+CircularImportError = CircularDependencyInModulesError
 
 
 class InvalidListenerError(SpryxDIError):
