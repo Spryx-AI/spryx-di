@@ -1,13 +1,16 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
-from typing import Any
+from typing import TYPE_CHECKING, TypeVar
 
-from spryx_di.container import Container
+from spryx_di.container import Container, ScopedContainer
 from spryx_di.errors import (
     CircularModuleError,
     ExportWithoutProviderError,
+    InvalidListenerError,
+    MissingEventBackendError,
     ModuleBoundaryError,
     ModuleNotFoundError,
 )
@@ -21,18 +24,29 @@ from spryx_di.provider import (
     ValueProvider,
 )
 
+if TYPE_CHECKING:
+    from spryx_di.events.backend import AsyncEventBackend
+    from spryx_di.events.handler import EventHandler
+    from spryx_di.events.listener import EventListener
+
 logger = logging.getLogger("spryx_di")
+
+T = TypeVar("T")
+
+OnDestroyHook = Callable[[Container], Awaitable[None]] | Callable[[Container], None]
+ShutdownHook = Callable[[], Awaitable[None]] | Callable[[], None]
 
 
 @dataclass
 class Module:
-    """Declarative module definition inspired by NestJS."""
+    """Declarative module definition."""
 
     name: str
     providers: list[Provider | type] = field(default_factory=list)
     exports: list[type | Module] = field(default_factory=list)
     imports: list[Module | ForwardRef] = field(default_factory=list)
-    on_destroy: Any | None = None  # Callable[[Container], Awaitable[None]] | None
+    on_destroy: OnDestroyHook | None = None
+    listeners: list[EventListener] = field(default_factory=list)
 
 
 def _register_provider(container: Container, provider: Provider) -> None:
@@ -41,13 +55,16 @@ def _register_provider(container: Container, provider: Provider) -> None:
             container.instance(iface, val)
         case FactoryProvider(provide=iface, use_factory=fn, scope=scope):
             if scope == Scope.SINGLETON:
-                cache: dict[type, object] = {}
+                _cached: list[object] = []
 
-                def memoized(c: Container, _fn: Any = fn, _cache: Any = cache) -> Any:
-                    if _cache:
-                        return _cache[True]
+                def memoized(
+                    c: Container,
+                    _fn: Callable[[Container], object] = fn,
+                ) -> object:
+                    if _cached:
+                        return _cached[0]
                     result = _fn(c)
-                    _cache[True] = result
+                    _cached.append(result)
                     return result
 
                 container.factory(iface, memoized)
@@ -145,16 +162,20 @@ class ApplicationContext:
         self,
         modules: list[Module],
         globals: list[Provider] | None = None,
+        event_backend: AsyncEventBackend | None = None,
     ) -> None:
         self._modules = modules
         self._globals = globals or []
+        self._event_backend = event_backend
         self._container = Container()
         self._module_containers: dict[str, Container] = {}
         self._provider_to_module: dict[type, str] = {}
         self._exported_types: dict[str, set[type]] = {}
         self._resolved_imports: dict[str, list[Module]] = {}
         self._forward_ref_edges: set[tuple[str, str]] = set()
-        self._managed_instances: list[Any] = []
+        self._managed_instances: list[object] = []
+        self._event_registry: dict[str, type] = {}
+        self._handler_registry: dict[str, type[EventHandler]] = {}
         self._boot()
 
     def _boot(self) -> None:
@@ -205,6 +226,7 @@ class ApplicationContext:
         for module in self._modules:
             self._module_containers[module.name] = self._build_module_container(module)
 
+        self._boot_event_system()
         self._collect_managed_instances()
 
     def _build_module_container(self, module: Module) -> Container:
@@ -222,10 +244,46 @@ class ApplicationContext:
 
         return mod_container
 
-    def resolve(self, type_: type[Any]) -> Any:
+    def _boot_event_system(self) -> None:
+        from spryx_di.events.bus import EventBus
+        from spryx_di.events.handler import EventHandler
+        from spryx_di.events.listener import ListenerScope
+
+        all_listeners: list[EventListener] = []
+        for module in self._modules:
+            for listener in module.listeners:
+                if not issubclass(listener.handler, EventHandler):
+                    raise InvalidListenerError(listener.handler.__name__)
+
+                if listener.scope == ListenerScope.ASYNC and self._event_backend is None:
+                    raise MissingEventBackendError(module.name, listener.handler.__name__)
+
+                all_listeners.append(listener)
+
+        if not all_listeners:
+            return
+
+        event_bus = EventBus(
+            container=self._container,
+            async_backend=self._event_backend,
+        )
+        self._container.instance(EventBus, event_bus)
+
+        for listener in all_listeners:
+            event_bus.register_handler(
+                event_type=listener.event,
+                handler_type=listener.handler,
+                scope=listener.scope,
+            )
+            event_key = f"{listener.event.__module__}.{listener.event.__qualname__}"
+            handler_key = f"{listener.handler.__module__}.{listener.handler.__qualname__}"
+            self._event_registry[event_key] = listener.event
+            self._handler_registry[handler_key] = listener.handler
+
+    def resolve(self, type_: type[T]) -> T:
         return self._container.resolve(type_)
 
-    def resolve_within(self, module: Module, type_: type[Any]) -> Any:
+    def resolve_within(self, module: Module, type_: type[T]) -> T:
         mod_container = self._module_containers.get(module.name)
         if mod_container is None:
             raise ModuleNotFoundError("(caller)", module.name)
@@ -250,6 +308,14 @@ class ApplicationContext:
     def container(self) -> Container:
         return self._container
 
+    @property
+    def event_registry(self) -> dict[str, type]:
+        return self._event_registry
+
+    @property
+    def handler_registry(self) -> dict[str, type[EventHandler]]:
+        return self._handler_registry
+
     def _collect_managed_instances(self) -> None:
         seen: set[int] = set()
         for obj in self._container._instances.values():
@@ -259,7 +325,7 @@ class ApplicationContext:
             if hasattr(obj, "__aexit__") or hasattr(obj, "aclose") or hasattr(obj, "close"):
                 self._managed_instances.append(obj)
 
-    def on_shutdown(self, hook: Any) -> None:
+    def on_shutdown(self, hook: ShutdownHook) -> None:
         self._container.on_shutdown(hook)
 
     async def shutdown(self) -> None:
@@ -273,17 +339,21 @@ class ApplicationContext:
                     await result
 
         for instance in reversed(self._managed_instances):
-            if hasattr(instance, "__aexit__"):
-                await instance.__aexit__(None, None, None)
-            elif hasattr(instance, "aclose"):
-                await instance.aclose()
-            elif hasattr(instance, "close"):
-                result = instance.close()
+            aexit = getattr(instance, "__aexit__", None)
+            aclose = getattr(instance, "aclose", None)
+            close = getattr(instance, "close", None)
+
+            if callable(aexit):
+                await aexit(None, None, None)
+            elif callable(aclose):
+                await aclose()
+            elif callable(close):
+                result = close()
                 if asyncio.iscoroutine(result):
                     await result
         self._managed_instances.clear()
 
         await self._container.shutdown()
 
-    def create_scope(self) -> Any:
+    def create_scope(self) -> ScopedContainer:
         return self._container.create_scope()

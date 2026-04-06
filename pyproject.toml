@@ -22,6 +22,7 @@ classifiers = [
 dependencies = []
 
 [project.optional-dependencies]
+celery = ["celery>=5.0"]
 fastapi = ["fastapi==0.135.3"]
 settings = ["pydantic-settings==2.13.1"]
 docs = ["zensical"]
@@ -79,7 +80,7 @@ exclude = ["examples/"]
 unused-type-ignore-comment = "ignore"
 
 [[tool.ty.overrides]]
-include = ["spryx_di/ext/*", "tests/*"]
+include = ["spryx_di/ext/*", "spryx_di/events/backends/*", "tests/*"]
 [tool.ty.overrides.rules]
 unresolved-import = "ignore"
 
