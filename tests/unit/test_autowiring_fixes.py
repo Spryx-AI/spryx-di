@@ -201,3 +201,53 @@ class TestProtocolABCDetection:
         container.register(_MyABC, _ConcreteFromABC)
         result = container.resolve(_MyABC)
         assert isinstance(result, _ConcreteFromABC)
+
+
+# ── Partial hint resolution (TYPE_CHECKING scenario) ─────────────
+
+
+class _TypeCheckingOnlyDep:
+    """Simulates a type imported under TYPE_CHECKING — not available at runtime."""
+
+    pass
+
+
+class _RegisteredDep:
+    pass
+
+
+class _ServiceWithMixedHints:
+    """Has two deps: one resolvable, one only in TYPE_CHECKING (not registered).
+    With from __future__ import annotations, both hints are strings.
+    get_type_hints() fails entirely because _TypeCheckingOnlyDep is missing."""
+
+    def __init__(
+        self, registered: _RegisteredDep, unavailable: _TypeCheckingOnlyDep | None = None
+    ) -> None:
+        self.registered = registered
+        self.unavailable = unavailable
+
+
+class TestPartialHintResolution:
+    def test_resolves_available_hints_when_get_type_hints_fails_partially(
+        self, container: Container
+    ) -> None:
+        """When get_type_hints fails because one annotation is unresolvable,
+        the container should still resolve the other registered annotations
+        instead of failing with TypeHintRequiredError."""
+
+        container.register(_RegisteredDep, _RegisteredDep)
+        container.register(_ServiceWithMixedHints, _ServiceWithMixedHints)
+
+        # Simulate TYPE_CHECKING: remove _TypeCheckingOnlyDep from the module
+        # so get_type_hints can't resolve it
+        import test_autowiring_fixes as mod
+
+        original = mod._TypeCheckingOnlyDep
+        delattr(mod, "_TypeCheckingOnlyDep")
+        try:
+            result = container.resolve(_ServiceWithMixedHints)
+            assert isinstance(result, _ServiceWithMixedHints)
+            assert isinstance(result.registered, _RegisteredDep)
+        finally:
+            mod._TypeCheckingOnlyDep = original
