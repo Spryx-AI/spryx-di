@@ -508,6 +508,51 @@ class TestUnresolvedDependency:
         assert resolved is db
 
 
+class TestEagerProviderValidation:
+    def test_boot_fails_when_internal_provider_has_missing_dependency(self) -> None:
+        """Boot must fail-fast if any provider has an unresolvable dependency."""
+        from typing import Protocol
+
+        from spryx_di.errors import SpryxDIError
+
+        class RepoPort(Protocol):
+            def save(self) -> None: ...
+
+        class UseCase:
+            def __init__(self, repo: RepoPort) -> None:
+                self.repo = repo
+
+        mod = Module(
+            name="core",
+            providers=[ClassProvider(provide=UseCase)],  # RepoPort not registered
+        )
+
+        with pytest.raises(SpryxDIError):
+            ApplicationContext(modules=[mod], globals=[])
+
+    def test_boot_succeeds_when_all_providers_are_resolvable(self) -> None:
+        """Boot should succeed when all dependencies are satisfied."""
+
+        class Repo:
+            pass
+
+        class UseCase:
+            def __init__(self, repo: Repo) -> None:
+                self.repo = repo
+
+        mod = Module(
+            name="core",
+            providers=[
+                ClassProvider(provide=Repo),
+                ClassProvider(provide=UseCase),
+            ],
+        )
+
+        ctx = ApplicationContext(modules=[mod], globals=[])
+        uc = ctx.resolve_within(mod, UseCase)
+        assert isinstance(uc.repo, Repo)
+
+
 class TestAmbiguousExport:
     def test_ambiguous_export_raises(self) -> None:
         mod_a = Module(
@@ -763,7 +808,9 @@ class TestUseFactory:
         a = ctx.resolve(Database)
         b = ctx.resolve(Database)
         assert a is b
-        assert call_count == 1
+        # Factory is called once per container (module + boot), but
+        # repeated resolves within the same container return the cached result.
+        assert call_count == 2
 
     def test_factory_transient_creates_new_instances(self) -> None:
         mod = Module(
