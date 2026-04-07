@@ -1,6 +1,26 @@
 # CHANGELOG
 
 
+## v3.0.2 (2026-04-07)
+
+### Bug Fixes
+
+- **module**: Resolve exported ExistingProvider from owning module container
+  ([#13](https://github.com/Spryx-AI/spryx-di/pull/13),
+  [`3729a49`](https://github.com/Spryx-AI/spryx-di/commit/3729a494919e9d139e7c2676f203b4bbb158e095))
+
+* fix(module): resolve exported ExistingProvider from owning module container
+
+ExistingProvider(export=True) was resolving the target type from the global container, causing
+  incorrect behavior when modules share internal types with different values. The resolution lambda
+  now delegates to the owning module's container so internal dependencies stay correctly scoped.
+
+* fix(module): guard singleton cache seeding against overwrites
+
+When two modules share the same use_existing target, the second iteration would overwrite the first
+  module's entry in the global singleton cache. Add a guard to only seed when no entry exists yet.
+
+
 ## v3.0.1 (2026-04-07)
 
 ### Bug Fixes
