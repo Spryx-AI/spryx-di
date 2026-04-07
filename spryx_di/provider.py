@@ -34,14 +34,7 @@ class ClassProvider:
 
 @dataclass(frozen=True)
 class FactoryProvider:
-    """Provide a dependency via a factory callable or declarative deps/args.
-
-    Either supply *use_factory*, or *deps*/*args* (or both deps and args).
-    When *deps*/*args* are used, the framework generates the factory automatically.
-
-    *deps* maps parameter names to types resolved via ``container.resolve()``.
-    *args* maps parameter names to callables ``(Container) -> value``.
-    """
+    """Provide a dependency via a factory callable or declarative deps/args."""
 
     provide: type
     use_factory: Any | None = None  # Callable[[Container], Any]
