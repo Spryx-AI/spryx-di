@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from spryx_di import ApplicationContext, ClassProvider, Module
+from spryx_di import ApplicationContext, ClassProvider, ExistingProvider, Module
 from spryx_di.analysis import (
     _check_orphan_providers,
     _check_unconsumed_exports,
@@ -110,6 +110,17 @@ class TestCheckOrphanProviders:
         )
         warnings = _check_orphan_providers([mod])
         assert len(warnings) == 0
+
+    def test_no_warning_for_existing_provider(self) -> None:
+        mod = Module(
+            name="agent",
+            providers=[
+                ClassProvider(provide=PgRepo),
+                ExistingProvider(provide=RepoPort, use_existing=PgRepo),
+            ],
+        )
+        warnings = _check_orphan_providers([mod])
+        assert not any("RepoPort" in w for w in warnings)
 
     def test_no_warning_when_used_internally(self) -> None:
         mod = Module(
