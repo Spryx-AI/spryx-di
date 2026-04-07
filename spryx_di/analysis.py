@@ -40,6 +40,20 @@ def _check_unconsumed_exports(ctx: ApplicationContext) -> list[str]:
     return warnings
 
 
+def _is_needed(provider_type: type, needed_types: set[type]) -> bool:
+    if provider_type in needed_types:
+        return True
+    for hint in needed_types:
+        if not isinstance(hint, type):
+            continue
+        try:
+            if issubclass(provider_type, hint):
+                return True
+        except TypeError:
+            continue
+    return False
+
+
 def _check_orphan_providers(modules: list[Module]) -> list[str]:
     warnings: list[str] = []
     for module in modules:
@@ -59,11 +73,7 @@ def _check_orphan_providers(modules: list[Module]) -> list[str]:
                 continue
             if provider.provide in existing_targets:
                 continue
-            if not any(
-                hint is provider.provide or issubclass(provider.provide, hint)
-                for hint in needed_types
-                if isinstance(hint, type)
-            ):
+            if not _is_needed(provider.provide, needed_types):
                 warnings.append(
                     f"Module '{module.name}' has orphan provider "
                     f"'{provider.provide.__name__}' "

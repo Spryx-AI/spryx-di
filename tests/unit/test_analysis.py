@@ -193,6 +193,25 @@ class TestCheckOrphanProviders:
         warnings = _check_orphan_providers([mod])
         assert not any("WebhookRepo" in w for w in warnings)
 
+    def test_no_crash_with_protocol_hint(self) -> None:
+        """Protocols with non-method members don't support issubclass()."""
+        from typing import Protocol, runtime_checkable
+
+        @runtime_checkable
+        class HasName(Protocol):
+            name: str
+
+        class Named:
+            def __init__(self, name: str) -> None:
+                self.name = name
+
+        mod = Module(
+            name="test",
+            providers=[ClassProvider(provide=Named)],
+        )
+        # Should not raise TypeError
+        _check_orphan_providers([mod])
+
     def test_no_warning_when_used_internally(self) -> None:
         mod = Module(
             name="agent",
