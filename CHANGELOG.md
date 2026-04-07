@@ -1,6 +1,15 @@
 # CHANGELOG
 
 
+## v3.0.1 (2026-04-07)
+
+### Bug Fixes
+
+- **analysis**: Handle Protocols with non-method members in orphan check
+  ([#12](https://github.com/Spryx-AI/spryx-di/pull/12),
+  [`09615b3`](https://github.com/Spryx-AI/spryx-di/commit/09615b3f2d5f0020330879488e8c38e5a8d6fffe))
+
+
 ## v3.0.0 (2026-04-07)
 
 ### Features
