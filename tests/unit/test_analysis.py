@@ -1,11 +1,12 @@
 from __future__ import annotations
 
-from spryx_di import ApplicationContext, ClassProvider, Module
+from spryx_di import ApplicationContext, ClassProvider, ExistingProvider, FactoryProvider, Module
 from spryx_di.analysis import (
     _check_orphan_providers,
     _check_unconsumed_exports,
     _check_unused_dependencies,
 )
+from spryx_di.container import Container
 
 
 class Database:
@@ -31,6 +32,28 @@ class MyService:
 
 class UnusedService:
     pass
+
+
+class EvaluatorAbc:
+    pass
+
+
+class DeterministicEvaluator(EvaluatorAbc):
+    pass
+
+
+class Pipeline:
+    def __init__(self, evaluator: EvaluatorAbc) -> None:
+        self.evaluator = evaluator
+
+
+class WebhookRepo:
+    pass
+
+
+class DriveSubscription:
+    def __init__(self, repo: WebhookRepo) -> None:
+        self.repo = repo
 
 
 class TestCheckUnusedDependencies:
@@ -110,6 +133,65 @@ class TestCheckOrphanProviders:
         )
         warnings = _check_orphan_providers([mod])
         assert len(warnings) == 0
+
+    def test_no_warning_for_existing_provider_target(self) -> None:
+        """PgRepo is target of ExistingProvider — not orphan."""
+        mod = Module(
+            name="agent",
+            providers=[
+                ClassProvider(provide=PgRepo),
+                ExistingProvider(provide=RepoPort, use_existing=PgRepo, export=True),
+            ],
+        )
+        warnings = _check_orphan_providers([mod])
+        assert not any("PgRepo" in w for w in warnings)
+
+    def test_warns_for_unused_existing_provider(self) -> None:
+        """ExistingProvider whose port nobody uses is orphan."""
+
+        class UsageReaderPort:
+            pass
+
+        class PgUsageReader:
+            pass
+
+        mod = Module(
+            name="agent",
+            providers=[
+                ClassProvider(provide=PgUsageReader),
+                ExistingProvider(provide=UsageReaderPort, use_existing=PgUsageReader),
+            ],
+        )
+        warnings = _check_orphan_providers([mod])
+        assert any("UsageReaderPort" in w for w in warnings)
+
+    def test_no_warning_for_subclass_satisfying_base_hint(self) -> None:
+        """Provider registers concrete, consumer __init__ asks for ABC."""
+        mod = Module(
+            name="agent",
+            providers=[
+                ClassProvider(provide=DeterministicEvaluator),
+                ClassProvider(provide=Pipeline, public=True),
+            ],
+        )
+        warnings = _check_orphan_providers([mod])
+        assert not any("DeterministicEvaluator" in w for w in warnings)
+
+    def test_no_warning_for_provider_used_by_factory(self) -> None:
+        """FactoryProvider's provide type __init__ hints are inspected."""
+
+        def _factory(c: Container) -> DriveSubscription:
+            return DriveSubscription(repo=c.resolve(WebhookRepo))
+
+        mod = Module(
+            name="drive",
+            providers=[
+                ClassProvider(provide=WebhookRepo),
+                FactoryProvider(provide=DriveSubscription, use_factory=_factory, public=True),
+            ],
+        )
+        warnings = _check_orphan_providers([mod])
+        assert not any("WebhookRepo" in w for w in warnings)
 
     def test_no_warning_when_used_internally(self) -> None:
         mod = Module(

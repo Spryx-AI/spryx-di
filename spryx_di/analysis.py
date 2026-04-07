@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from spryx_di.module import _collect_needed_types, _normalize_provider
+from spryx_di.provider import ExistingProvider
 
 if TYPE_CHECKING:
     from spryx_di.module import ApplicationContext, Module
@@ -45,11 +46,24 @@ def _check_orphan_providers(modules: list[Module]) -> list[str]:
         if not module.providers:
             continue
         needed_types = _collect_needed_types(module)
+
+        existing_targets: set[type] = set()
+        for item in module.providers:
+            p = _normalize_provider(item)
+            if isinstance(p, ExistingProvider):
+                existing_targets.add(p.use_existing)
+
         for item in module.providers:
             provider = _normalize_provider(item)
             if provider.export or provider.public:
                 continue
-            if provider.provide not in needed_types:
+            if provider.provide in existing_targets:
+                continue
+            if not any(
+                hint is provider.provide or issubclass(provider.provide, hint)
+                for hint in needed_types
+                if isinstance(hint, type)
+            ):
                 warnings.append(
                     f"Module '{module.name}' has orphan provider "
                     f"'{provider.provide.__name__}' "

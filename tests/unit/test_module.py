@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import logging
+
 import pytest
 
 from spryx_di import (
     AmbiguousExportError,
     ApplicationContext,
-    CircularDependencyInModulesError,
+    CircularDependencyError,
     ClassProvider,
     ExistingProvider,
     FactoryProvider,
@@ -353,8 +355,8 @@ class TestAmbiguousExport:
 
 
 class TestCircularDependencies:
-    def test_direct_circular_raises(self) -> None:
-        """A depends on B, B depends on A → cycle."""
+    def test_direct_circular_warns(self, caplog: pytest.LogCaptureFixture) -> None:
+        """A depends on B, B depends on A → warning, not error."""
         mod_a = Module(
             name="a",
             providers=[
@@ -374,17 +376,19 @@ class TestCircularDependencies:
             dependencies=[TeamReaderPort],
         )
         db = Database()
-        with pytest.raises(CircularDependencyInModulesError) as exc_info:
-            ApplicationContext(
+        with caplog.at_level(logging.WARNING, logger="spryx_di"):
+            ctx = ApplicationContext(
                 modules=[mod_a, mod_b],
                 globals=[ValueProvider(provide=Database, use_value=db)],
             )
-        assert "a" in str(exc_info.value)
-        assert "b" in str(exc_info.value)
-        assert "Hint" in str(exc_info.value)
+        cycle_warnings = [r for r in caplog.records if "Circular dependency" in r.message]
+        assert len(cycle_warnings) >= 1
+        assert "a" in cycle_warnings[0].message
+        assert "b" in cycle_warnings[0].message
+        assert ctx.container is not None
 
-    def test_indirect_circular_raises(self) -> None:
-        """A→B→C→A cycle."""
+    def test_indirect_circular_warns(self, caplog: pytest.LogCaptureFixture) -> None:
+        """A→B→C→A cycle emits warning, boots successfully."""
 
         class PortA:
             pass
@@ -410,9 +414,33 @@ class TestCircularDependencies:
             providers=[ClassProvider(provide=PortC, export=True)],
             dependencies=[PortB],
         )
-        with pytest.raises(CircularDependencyInModulesError) as exc_info:
-            ApplicationContext(modules=[mod_a, mod_b, mod_c])
-        assert "a" in str(exc_info.value)
+        with caplog.at_level(logging.WARNING, logger="spryx_di"):
+            ctx = ApplicationContext(modules=[mod_a, mod_b, mod_c])
+        cycle_warnings = [r for r in caplog.records if "Circular dependency" in r.message]
+        assert len(cycle_warnings) >= 1
+        assert "a" in cycle_warnings[0].message
+        assert ctx.container is not None
+
+    def test_provider_circular_dependency_detected_at_boot(self) -> None:
+        """A.__init__ needs B, B.__init__ needs A → error at boot, not at resolve."""
+
+        class ServiceA:
+            def __init__(self, b: ServiceB) -> None:
+                self.b = b
+
+        class ServiceB:
+            def __init__(self, a: ServiceA) -> None:
+                self.a = a
+
+        mod = Module(
+            name="circular",
+            providers=[
+                ClassProvider(provide=ServiceA),
+                ClassProvider(provide=ServiceB),
+            ],
+        )
+        with pytest.raises(CircularDependencyError):
+            ApplicationContext(modules=[mod])
 
     def test_no_cycle_when_unidirectional(self) -> None:
         """A→B is fine when B doesn't depend on A."""
@@ -581,6 +609,251 @@ class TestUseFactory:
         a = ctx.resolve(Database)
         b = ctx.resolve(Database)
         assert a is not b
+
+
+class TestFactoryProviderDepsArgs:
+    # --- Validation ---
+
+    def test_requires_factory_or_deps(self) -> None:
+        with pytest.raises(ValueError, match="requires use_factory or deps/args"):
+            FactoryProvider(provide=Database)
+
+    def test_rejects_factory_with_deps(self) -> None:
+        with pytest.raises(ValueError, match="cannot combine"):
+            FactoryProvider(
+                provide=Database,
+                use_factory=lambda c: Database(),
+                deps={"db": Database},
+            )
+
+    def test_rejects_factory_with_args(self) -> None:
+        with pytest.raises(ValueError, match="cannot combine"):
+            FactoryProvider(
+                provide=Database,
+                use_factory=lambda c: Database(),
+                args={"x": lambda c: 1},
+            )
+
+    def test_accepts_deps_only(self) -> None:
+        fp = FactoryProvider(provide=PgTeamReader, deps={"db": Database})
+        assert fp.deps == {"db": Database}
+        assert fp.args == {}
+        assert fp.use_factory is None
+
+    def test_accepts_args_only(self) -> None:
+        fp = FactoryProvider(provide=Database, args={"x": lambda c: 1})
+        assert fp.use_factory is None
+        assert len(fp.args) == 1
+
+    def test_accepts_deps_and_args(self) -> None:
+        fp = FactoryProvider(
+            provide=PgTeamReader,
+            deps={"db": Database},
+            args={"extra": lambda c: "val"},
+        )
+        assert fp.deps == {"db": Database}
+        assert len(fp.args) == 1
+
+    # --- Resolution via deps ---
+
+    def test_deps_resolves_types(self) -> None:
+        db = Database()
+        mod = Module(
+            name="test",
+            providers=[
+                FactoryProvider(provide=PgTeamReader, deps={"db": Database}),
+            ],
+        )
+        ctx = ApplicationContext(
+            modules=[mod],
+            globals=[ValueProvider(provide=Database, use_value=db)],
+        )
+        reader = ctx.resolve(PgTeamReader)
+        assert isinstance(reader, PgTeamReader)
+        assert reader.db is db
+
+    def test_deps_multiple_types(self) -> None:
+        class ServiceWithTwoDeps:
+            def __init__(self, reader: TeamReader, repo: TeamRepository) -> None:
+                self.reader = reader
+                self.repo = repo
+
+        mod = Module(
+            name="test",
+            providers=[
+                ClassProvider(provide=TeamReader, use_class=PgTeamReader),
+                ClassProvider(provide=TeamRepository, use_class=PgTeamRepository),
+                FactoryProvider(
+                    provide=ServiceWithTwoDeps,
+                    deps={"reader": TeamReader, "repo": TeamRepository},
+                    public=True,
+                ),
+            ],
+        )
+        db = Database()
+        ctx = ApplicationContext(
+            modules=[mod],
+            globals=[ValueProvider(provide=Database, use_value=db)],
+        )
+        svc = ctx.resolve(ServiceWithTwoDeps)
+        assert isinstance(svc.reader, PgTeamReader)
+        assert isinstance(svc.repo, PgTeamRepository)
+
+    # --- Resolution via args ---
+
+    def test_args_receives_container(self) -> None:
+        class Settings:
+            api_key: str = "secret-123"
+
+        class Client:
+            def __init__(self, api_key: str) -> None:
+                self.api_key = api_key
+
+        mod = Module(
+            name="test",
+            providers=[
+                ValueProvider(provide=Settings, use_value=Settings()),
+                FactoryProvider(
+                    provide=Client,
+                    args={"api_key": lambda c: c.resolve(Settings).api_key},
+                ),
+            ],
+        )
+        ctx = ApplicationContext(modules=[mod])
+        client = ctx.resolve(Client)
+        assert client.api_key == "secret-123"
+
+    # --- Resolution via deps + args ---
+
+    def test_deps_and_args_combined(self) -> None:
+        class IntegrationContext:
+            def __init__(self, db: Database, api_key: str, debug: bool) -> None:
+                self.db = db
+                self.api_key = api_key
+                self.debug = debug
+
+        db = Database()
+        mod = Module(
+            name="test",
+            providers=[
+                FactoryProvider(
+                    provide=IntegrationContext,
+                    deps={"db": Database},
+                    args={
+                        "api_key": lambda c: "key-456",
+                        "debug": lambda c: True,
+                    },
+                ),
+            ],
+        )
+        ctx = ApplicationContext(
+            modules=[mod],
+            globals=[ValueProvider(provide=Database, use_value=db)],
+        )
+        ic = ctx.resolve(IntegrationContext)
+        assert ic.db is db
+        assert ic.api_key == "key-456"
+        assert ic.debug is True
+
+    # --- Singleton / Transient scope ---
+
+    def test_deps_singleton_by_default(self) -> None:
+        mod = Module(
+            name="test",
+            providers=[
+                FactoryProvider(provide=PgTeamReader, deps={"db": Database}),
+            ],
+        )
+        db = Database()
+        ctx = ApplicationContext(
+            modules=[mod],
+            globals=[ValueProvider(provide=Database, use_value=db)],
+        )
+        a = ctx.resolve(PgTeamReader)
+        b = ctx.resolve(PgTeamReader)
+        assert a is b
+
+    def test_deps_transient_creates_new_instances(self) -> None:
+        mod = Module(
+            name="test",
+            providers=[
+                FactoryProvider(
+                    provide=PgTeamReader,
+                    deps={"db": Database},
+                    scope=Scope.TRANSIENT,
+                ),
+            ],
+        )
+        db = Database()
+        ctx = ApplicationContext(
+            modules=[mod],
+            globals=[ValueProvider(provide=Database, use_value=db)],
+        )
+        a = ctx.resolve(PgTeamReader)
+        b = ctx.resolve(PgTeamReader)
+        assert a is not b
+        assert a.db is db
+
+    # --- Analyzer integration ---
+
+    def test_deps_tracked_by_orphan_analyzer(self) -> None:
+        mod = Module(
+            name="test",
+            providers=[
+                ClassProvider(provide=Database),
+                FactoryProvider(
+                    provide=PgTeamReader,
+                    deps={"db": Database},
+                    public=True,
+                ),
+            ],
+        )
+        warnings = ApplicationContext(modules=[mod]).analyze()
+        assert not any("Database" in w and "orphan" in w for w in warnings)
+
+    def test_deps_tracked_by_cycle_detector(self) -> None:
+        class ServiceA:
+            def __init__(self, b: ServiceB) -> None:
+                self.b = b
+
+        class ServiceB:
+            pass
+
+        mod = Module(
+            name="test",
+            providers=[
+                FactoryProvider(
+                    provide=ServiceA,
+                    deps={"b": ServiceB},
+                ),
+                FactoryProvider(
+                    provide=ServiceB,
+                    deps={"a": ServiceA},
+                ),
+            ],
+        )
+        with pytest.raises(CircularDependencyError):
+            ApplicationContext(modules=[mod])
+
+    def test_use_factory_still_works(self) -> None:
+        db = Database()
+        mod = Module(
+            name="test",
+            providers=[
+                FactoryProvider(
+                    provide=TeamReader,
+                    use_factory=lambda c: PgTeamReader(c.resolve(Database)),
+                    export=True,
+                ),
+            ],
+        )
+        ctx = ApplicationContext(
+            modules=[mod],
+            globals=[ValueProvider(provide=Database, use_value=db)],
+        )
+        reader = ctx.resolve(TeamReader)
+        assert isinstance(reader, PgTeamReader)
+        assert reader.db is db
 
 
 class TestUseExisting:

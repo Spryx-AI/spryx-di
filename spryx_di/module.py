@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, TypeVar
 from spryx_di.container import Container, ScopedContainer
 from spryx_di.errors import (
     AmbiguousExportError,
-    CircularDependencyInModulesError,
+    CircularDependencyError,
     InvalidListenerError,
     MissingEventBackendError,
     ModuleBoundaryError,
@@ -89,16 +89,98 @@ def _collect_needed_types(module: Module) -> set[type]:
         provider = _normalize_provider(item)
         if isinstance(provider, ClassProvider) and provider.use_class is not None:
             needed.update(_get_init_hint_types(provider.use_class, extra_ns))
+        elif isinstance(provider, FactoryProvider):
+            if provider.deps:
+                needed.update(provider.deps.values())
+            else:
+                needed.update(_get_init_hint_types(provider.provide, extra_ns))
         elif isinstance(provider, ExistingProvider):
             needed.add(provider.use_existing)
     return needed
+
+
+def _detect_provider_cycles(
+    modules: list[Module],
+    globals: list[Provider | type],
+) -> None:
+    all_providers: list[Provider] = []
+    extra_ns: dict[str, type] = {}
+
+    for item in globals:
+        p = _normalize_provider(item)
+        all_providers.append(p)
+        extra_ns[p.provide.__name__] = p.provide
+
+    for module in modules:
+        for dep_type in module.dependencies:
+            extra_ns[dep_type.__name__] = dep_type
+        for item in module.providers:
+            p = _normalize_provider(item)
+            all_providers.append(p)
+            extra_ns[p.provide.__name__] = p.provide
+
+    registered: set[type] = {p.provide for p in all_providers}
+
+    depends_on: dict[type, set[type]] = {}
+    for provider in all_providers:
+        provider_deps: set[type] = set()
+        if isinstance(provider, ClassProvider) and provider.use_class is not None:
+            for hint in _get_init_hint_types(provider.use_class, extra_ns):
+                if hint in registered:
+                    provider_deps.add(hint)
+        elif isinstance(provider, FactoryProvider):
+            if provider.deps:
+                for dep_type in provider.deps.values():
+                    if dep_type in registered:
+                        provider_deps.add(dep_type)
+            else:
+                for hint in _get_init_hint_types(provider.provide, extra_ns):
+                    if hint in registered:
+                        provider_deps.add(hint)
+        elif isinstance(provider, ExistingProvider) and provider.use_existing in registered:
+            provider_deps.add(provider.use_existing)
+        depends_on[provider.provide] = provider_deps
+
+    visited: set[type] = set()
+
+    def _visit(node: type, path: list[type]) -> None:
+        if node in path:
+            cycle = path[path.index(node) :] + [node]
+            raise CircularDependencyError(cycle)
+        if node in visited:
+            return
+        path.append(node)
+        for dep in depends_on.get(node, set()):
+            _visit(dep, path)
+        path.pop()
+        visited.add(node)
+
+    for t in depends_on:
+        _visit(t, [])
+
+
+def _build_factory(fp: FactoryProvider) -> Callable[[Container], object]:
+    cls = fp.provide
+    deps = fp.deps
+    args = fp.args
+
+    def factory(c: Container) -> object:
+        kwargs: dict[str, object] = {}
+        for name, dep_type in deps.items():
+            kwargs[name] = c.resolve(dep_type)
+        for name, fn in args.items():
+            kwargs[name] = fn(c)
+        return cls(**kwargs)
+
+    return factory
 
 
 def _register_provider(container: Container, provider: Provider) -> None:
     match provider:
         case ValueProvider(provide=iface, use_value=val):
             container.instance(iface, val)
-        case FactoryProvider(provide=iface, use_factory=fn, scope=scope):
+        case FactoryProvider(provide=iface, scope=scope) as fp:
+            fn = fp.use_factory or _build_factory(fp)
             if scope == Scope.SINGLETON:
                 _cached: list[object] = []
 
@@ -181,29 +263,39 @@ class ApplicationContext:
                         available_exports=self._export_registry,
                     )
 
-        # 4. Detect cycles in the dependency graph
-        self._detect_dependency_cycles(self._modules, self._export_registry)
+        # 4. Warn about cycles in the module dependency graph
+        for cycle in self._detect_dependency_cycles(self._modules, self._export_registry):
+            chain = " → ".join(cycle)
+            logger.warning(
+                "Circular dependency detected between modules: %s. "
+                "This works but may indicate tight coupling. "
+                "Consider using the event bus to break the cycle if it grows.",
+                chain,
+            )
 
-        # 5. Register globals
+        # 5. Detect circular dependencies between providers (fail-fast)
+        _detect_provider_cycles(self._modules, self._globals)
+
+        # 6. Register globals
         for item in self._globals:
             _register_provider(self._container, _normalize_provider(item))
 
-        # 6. Register providers from all modules
+        # 7. Register providers from all modules
         for module in self._modules:
             for item in module.providers:
                 provider = _normalize_provider(item)
                 _register_provider(self._container, provider)
                 self._provider_to_module[provider.provide] = module.name
 
-        # 7. Build per-module containers
+        # 8. Build per-module containers
         for module in self._modules:
             self._module_containers[module.name] = self._build_module_container(module)
 
-        # 8. Warn about dead code
+        # 9. Warn about dead code
         for warning in self.analyze():
             logger.warning(warning)
 
-        # 9. Event system + managed instances
+        # 10. Event system + managed instances
         self._boot_event_system()
         self._collect_managed_instances()
 
@@ -232,8 +324,7 @@ class ApplicationContext:
         self,
         modules: list[Module],
         export_registry: dict[type, str],
-    ) -> None:
-        # Build graph: module_name -> set of module_names it depends on
+    ) -> list[list[str]]:
         depends_on: dict[str, set[str]] = {}
         for module in modules:
             deps: set[str] = set()
@@ -243,11 +334,13 @@ class ApplicationContext:
                     deps.add(provider_module)
             depends_on[module.name] = deps
 
-        # DFS cycle detection
+        cycles: list[list[str]] = []
+
         def _visit(name: str, path: list[str], visited: set[str]) -> None:
             if name in path:
                 cycle = path[path.index(name) :] + [name]
-                raise CircularDependencyInModulesError(cycle)
+                cycles.append(cycle)
+                return
             if name in visited:
                 return
             path.append(name)
@@ -259,6 +352,8 @@ class ApplicationContext:
         visited: set[str] = set()
         for module in modules:
             _visit(module.name, [], visited)
+
+        return cycles
 
     def analyze(self) -> list[str]:
         from spryx_di.analysis import analyze
