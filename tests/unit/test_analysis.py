@@ -1,11 +1,12 @@
 from __future__ import annotations
 
-from spryx_di import ApplicationContext, ClassProvider, ExistingProvider, Module
+from spryx_di import ApplicationContext, ClassProvider, ExistingProvider, FactoryProvider, Module
 from spryx_di.analysis import (
     _check_orphan_providers,
     _check_unconsumed_exports,
     _check_unused_dependencies,
 )
+from spryx_di.container import Container
 
 
 class Database:
@@ -44,6 +45,15 @@ class DeterministicEvaluator(EvaluatorAbc):
 class Pipeline:
     def __init__(self, evaluator: EvaluatorAbc) -> None:
         self.evaluator = evaluator
+
+
+class WebhookRepo:
+    pass
+
+
+class DriveSubscription:
+    def __init__(self, repo: WebhookRepo) -> None:
+        self.repo = repo
 
 
 class TestCheckUnusedDependencies:
@@ -166,6 +176,22 @@ class TestCheckOrphanProviders:
         )
         warnings = _check_orphan_providers([mod])
         assert not any("DeterministicEvaluator" in w for w in warnings)
+
+    def test_no_warning_for_provider_used_by_factory(self) -> None:
+        """FactoryProvider's provide type __init__ hints are inspected."""
+
+        def _factory(c: Container) -> DriveSubscription:
+            return DriveSubscription(repo=c.resolve(WebhookRepo))
+
+        mod = Module(
+            name="drive",
+            providers=[
+                ClassProvider(provide=WebhookRepo),
+                FactoryProvider(provide=DriveSubscription, use_factory=_factory, public=True),
+            ],
+        )
+        warnings = _check_orphan_providers([mod])
+        assert not any("WebhookRepo" in w for w in warnings)
 
     def test_no_warning_when_used_internally(self) -> None:
         mod = Module(

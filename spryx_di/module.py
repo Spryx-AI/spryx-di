@@ -89,6 +89,8 @@ def _collect_needed_types(module: Module) -> set[type]:
         provider = _normalize_provider(item)
         if isinstance(provider, ClassProvider) and provider.use_class is not None:
             needed.update(_get_init_hint_types(provider.use_class, extra_ns))
+        elif isinstance(provider, FactoryProvider):
+            needed.update(_get_init_hint_types(provider.provide, extra_ns))
         elif isinstance(provider, ExistingProvider):
             needed.add(provider.use_existing)
     return needed
