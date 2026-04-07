@@ -298,6 +298,14 @@ class ApplicationContext:
                 self._boot_container._factories.pop(provider.provide, None)
                 self._boot_container._instances[provider.provide] = resolved
 
+        # 8c. Eagerly resolve all providers in each module container to
+        #     fail-fast on missing dependencies instead of deferring to runtime.
+        for module in self._modules:
+            mod_container = self._module_containers[module.name]
+            for item in module.providers:
+                provider = _normalize_provider(item)
+                mod_container.resolve(provider.provide)
+
         # 9. Warn about dead code
         for warning in self.analyze():
             logger.warning(warning)
