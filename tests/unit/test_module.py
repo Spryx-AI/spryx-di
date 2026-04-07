@@ -306,6 +306,53 @@ class TestApplicationContext:
         with pytest.raises(UnresolvableTypeError):
             ctx.resolve(TeamReader)
 
+    def test_inject_rejects_non_exported_use_case(self) -> None:
+        """Inject() path (ctx.container.resolve) rejects a use case without export=True."""
+
+        class Repo:
+            pass
+
+        class UseCase:
+            def __init__(self, repo: Repo) -> None:
+                self.repo = repo
+
+        mod = Module(
+            name="core",
+            providers=[
+                ClassProvider(provide=Repo),
+                ClassProvider(provide=UseCase),  # no export
+            ],
+        )
+        ctx = ApplicationContext(modules=[mod], globals=[])
+
+        # Simulate Inject(): container.resolve(cls)
+        with pytest.raises(UnresolvableTypeError):
+            ctx.container.resolve(UseCase)
+
+    def test_inject_resolves_exported_use_case(self) -> None:
+        """Inject() path (ctx.container.resolve) resolves a use case with export=True."""
+
+        class Repo:
+            pass
+
+        class UseCase:
+            def __init__(self, repo: Repo) -> None:
+                self.repo = repo
+
+        mod = Module(
+            name="core",
+            providers=[
+                ClassProvider(provide=Repo),  # internal
+                ClassProvider(provide=UseCase, export=True),
+            ],
+        )
+        ctx = ApplicationContext(modules=[mod], globals=[])
+
+        # Simulate Inject(): container.resolve(cls)
+        result = ctx.container.resolve(UseCase)
+        assert isinstance(result, UseCase)
+        assert isinstance(result.repo, Repo)
+
 
 class TestModuleBoundary:
     def test_boundary_violation_raises(self) -> None:
