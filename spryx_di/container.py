@@ -206,14 +206,12 @@ class Container:
                 for name, ann in annotations.items():
                     if name == "return":
                         continue
-                    if not isinstance(ann, str):
-                        continue
-                    try:
-                        val = eval(ann, globalns)  # noqa: S307
-                        if isinstance(val, type):
-                            result[name] = val
-                    except Exception:
-                        continue
+                    if isinstance(ann, str):
+                        try:
+                            ann = eval(ann, globalns)  # noqa: S307
+                        except Exception:
+                            continue
+                    result[name] = ann
                 return result
 
     def _warn_duplicate(self, type_: type) -> None:
