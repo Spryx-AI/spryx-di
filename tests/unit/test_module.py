@@ -611,6 +611,81 @@ class TestUseFactory:
         assert a is not b
 
 
+class TestFactoryProviderDepsArgs:
+    def test_deps_resolves_types(self) -> None:
+        db = Database()
+        mod = Module(
+            name="test",
+            providers=[
+                FactoryProvider(
+                    provide=PgTeamReader,
+                    deps={"db": Database},
+                    export=True,
+                ),
+            ],
+        )
+        ctx = ApplicationContext(
+            modules=[mod],
+            globals=[ValueProvider(provide=Database, use_value=db)],
+        )
+        reader = ctx.resolve(PgTeamReader)
+        assert isinstance(reader, PgTeamReader)
+        assert reader.db is db
+
+    def test_deps_and_args_combined(self) -> None:
+        class Config:
+            def __init__(self, db: Database, table_name: str) -> None:
+                self.db = db
+                self.table_name = table_name
+
+        db = Database()
+        mod = Module(
+            name="test",
+            providers=[
+                FactoryProvider(
+                    provide=Config,
+                    deps={"db": Database},
+                    args={"table_name": lambda c: "users"},
+                ),
+            ],
+        )
+        ctx = ApplicationContext(
+            modules=[mod],
+            globals=[ValueProvider(provide=Database, use_value=db)],
+        )
+        config = ctx.resolve(Config)
+        assert config.db is db
+        assert config.table_name == "users"
+
+    def test_validation_requires_factory_or_deps(self) -> None:
+        with pytest.raises(ValueError, match="requires use_factory or deps/args"):
+            FactoryProvider(provide=Database)
+
+    def test_validation_rejects_factory_with_deps(self) -> None:
+        with pytest.raises(ValueError, match="cannot combine"):
+            FactoryProvider(
+                provide=Database,
+                use_factory=lambda c: Database(),
+                deps={"db": Database},
+            )
+
+    def test_deps_tracked_by_analyzer(self) -> None:
+        """Deps types appear in orphan analysis — no false positives."""
+        mod = Module(
+            name="test",
+            providers=[
+                ClassProvider(provide=Database),
+                FactoryProvider(
+                    provide=PgTeamReader,
+                    deps={"db": Database},
+                    public=True,
+                ),
+            ],
+        )
+        warnings = ApplicationContext(modules=[mod]).analyze()
+        assert not any("Database" in w and "orphan" in w for w in warnings)
+
+
 class TestUseExisting:
     def test_use_existing_resolves_to_target(self) -> None:
         db = Database()

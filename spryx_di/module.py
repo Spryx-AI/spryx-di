@@ -90,7 +90,10 @@ def _collect_needed_types(module: Module) -> set[type]:
         if isinstance(provider, ClassProvider) and provider.use_class is not None:
             needed.update(_get_init_hint_types(provider.use_class, extra_ns))
         elif isinstance(provider, FactoryProvider):
-            needed.update(_get_init_hint_types(provider.provide, extra_ns))
+            if provider.deps:
+                needed.update(provider.deps.values())
+            else:
+                needed.update(_get_init_hint_types(provider.provide, extra_ns))
         elif isinstance(provider, ExistingProvider):
             needed.add(provider.use_existing)
     return needed
@@ -120,14 +123,23 @@ def _detect_provider_cycles(
 
     depends_on: dict[type, set[type]] = {}
     for provider in all_providers:
-        deps: set[type] = set()
+        provider_deps: set[type] = set()
         if isinstance(provider, ClassProvider) and provider.use_class is not None:
             for hint in _get_init_hint_types(provider.use_class, extra_ns):
                 if hint in registered:
-                    deps.add(hint)
+                    provider_deps.add(hint)
+        elif isinstance(provider, FactoryProvider):
+            if provider.deps:
+                for dep_type in provider.deps.values():
+                    if dep_type in registered:
+                        provider_deps.add(dep_type)
+            else:
+                for hint in _get_init_hint_types(provider.provide, extra_ns):
+                    if hint in registered:
+                        provider_deps.add(hint)
         elif isinstance(provider, ExistingProvider) and provider.use_existing in registered:
-            deps.add(provider.use_existing)
-        depends_on[provider.provide] = deps
+            provider_deps.add(provider.use_existing)
+        depends_on[provider.provide] = provider_deps
 
     visited: set[type] = set()
 
@@ -147,11 +159,28 @@ def _detect_provider_cycles(
         _visit(t, [])
 
 
+def _build_factory(fp: FactoryProvider) -> Callable[[Container], object]:
+    cls = fp.provide
+    deps = fp.deps
+    args = fp.args
+
+    def factory(c: Container) -> object:
+        kwargs: dict[str, object] = {}
+        for name, dep_type in deps.items():
+            kwargs[name] = c.resolve(dep_type)
+        for name, fn in args.items():
+            kwargs[name] = fn(c)
+        return cls(**kwargs)
+
+    return factory
+
+
 def _register_provider(container: Container, provider: Provider) -> None:
     match provider:
         case ValueProvider(provide=iface, use_value=val):
             container.instance(iface, val)
-        case FactoryProvider(provide=iface, use_factory=fn, scope=scope):
+        case FactoryProvider(provide=iface, scope=scope) as fp:
+            fn = fp.use_factory or _build_factory(fp)
             if scope == Scope.SINGLETON:
                 _cached: list[object] = []
 

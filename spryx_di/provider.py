@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
 
@@ -34,13 +34,30 @@ class ClassProvider:
 
 @dataclass(frozen=True)
 class FactoryProvider:
-    """Provide a dependency via a factory callable."""
+    """Provide a dependency via a factory callable or declarative deps/args.
+
+    Either supply *use_factory*, or *deps*/*args* (or both deps and args).
+    When *deps*/*args* are used, the framework generates the factory automatically.
+
+    *deps* maps parameter names to types resolved via ``container.resolve()``.
+    *args* maps parameter names to callables ``(Container) -> value``.
+    """
 
     provide: type
-    use_factory: Any  # Callable[[Container], Any]
+    use_factory: Any | None = None  # Callable[[Container], Any]
+    deps: dict[str, type] = field(default_factory=dict)
+    args: dict[str, Any] = field(default_factory=dict)  # str -> Callable[[Container], Any]
     scope: Scope = Scope.SINGLETON
     export: bool = False
     public: bool = False
+
+    def __post_init__(self) -> None:
+        if self.use_factory is None and not self.deps and not self.args:
+            msg = "FactoryProvider requires use_factory or deps/args"
+            raise ValueError(msg)
+        if self.use_factory is not None and (self.deps or self.args):
+            msg = "FactoryProvider cannot combine use_factory with deps/args"
+            raise ValueError(msg)
 
 
 @dataclass(frozen=True)
