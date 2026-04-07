@@ -338,9 +338,12 @@ class ApplicationContext:
         for module in self._modules:
             for item in module.providers:
                 provider = _normalize_provider(item)
-                if provider.export and isinstance(provider, (ClassProvider, FactoryProvider)):
-                    if provider.scope == Scope.TRANSIENT:
-                        result.add(provider.provide)
+                if (
+                    provider.export
+                    and isinstance(provider, (ClassProvider, FactoryProvider))
+                    and provider.scope == Scope.TRANSIENT
+                ):
+                    result.add(provider.provide)
         return result
 
     def _build_module_container(
