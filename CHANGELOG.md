@@ -1,6 +1,48 @@
 # CHANGELOG
 
 
+## v3.0.0 (2026-04-07)
+
+### Features
+
+- **module**: Downgrade module cycles to warnings, detect provider cycles at boot
+  ([#10](https://github.com/Spryx-AI/spryx-di/pull/10),
+  [`4ea651e`](https://github.com/Spryx-AI/spryx-di/commit/4ea651e7ad0e26de39ad3d947c6d9509fb23f1bd))
+
+* feat(module): detect provider circular dependencies at boot and downgrade module cycles to
+  warnings
+
+Module-level circular dependencies (via dependencies field) are no longer blocking errors — they are
+  logged as warnings since the ApplicationContext registers all providers globally before building
+  module containers, so no initialization deadlock occurs.
+
+Provider-level circular dependencies (A.__init__ needs B, B.__init__ needs A) are now detected
+  eagerly at boot via static analysis of __init__ type hints, raising CircularDependencyError before
+  any resolve() call.
+
+BREAKING CHANGE: CircularDependencyInModulesError is no longer raised during boot. Module dependency
+  cycles emit a warning instead. The class remains as an alias for backward compatibility.
+
+* fix(analysis): skip ExistingProvider in orphan provider check
+
+* fix(analysis): consider inheritance in orphan provider detection
+
+* fix(analysis): allow ExistingProvider orphan detection and skip its targets
+
+* fix(analysis): inspect FactoryProvider.provide __init__ for dependency tracking
+
+* feat(provider): add deps/args to FactoryProvider for declarative factories
+
+* test(provider): add comprehensive tests for FactoryProvider deps/args
+
+* style(provider): trim verbose FactoryProvider docstring
+
+### Breaking Changes
+
+- **module**: Circulardependencyinmoduleserror is no longer raised during boot. Module dependency
+  cycles emit a warning instead. The class remains as an alias for backward compatibility.
+
+
 ## v2.0.0 (2026-04-06)
 
 ### Features
