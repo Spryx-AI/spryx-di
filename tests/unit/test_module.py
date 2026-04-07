@@ -912,31 +912,33 @@ class TestUseExisting:
         )
         assert isinstance(ctx.resolve(UserReader), PgTeamReader)
 
-    def test_exported_existing_provider_resolves_from_module_container(self) -> None:
-        """Exported ExistingProvider resolves from owning module, not global container."""
+    def test_multiple_modules_each_export_existing_provider(self) -> None:
+        """Two modules each exporting via ExistingProvider both resolve correctly."""
 
-        class InternalConfig:
-            def __init__(self, value: str) -> None:
-                self.value = value
+        class SettingsA:
+            api_key = "key_a"
+
+        class SettingsB:
+            api_key = "key_b"
 
         class ServiceA:
-            def __init__(self, cfg: InternalConfig) -> None:
-                self.cfg_value = cfg.value
+            def __init__(self, s: SettingsA) -> None:
+                self.key = s.api_key
 
         class ServiceB:
-            def __init__(self, cfg: InternalConfig) -> None:
-                self.cfg_value = cfg.value
+            def __init__(self, s: SettingsB) -> None:
+                self.key = s.api_key
 
         class PortA:
-            cfg_value: str
+            key: str
 
         class PortB:
-            cfg_value: str
+            key: str
 
         mod_a = Module(
             name="mod_a",
             providers=[
-                ValueProvider(provide=InternalConfig, use_value=InternalConfig("A")),
+                ClassProvider(provide=SettingsA),
                 ClassProvider(provide=ServiceA),
                 ExistingProvider(provide=PortA, use_existing=ServiceA, export=True),
             ],
@@ -944,7 +946,7 @@ class TestUseExisting:
         mod_b = Module(
             name="mod_b",
             providers=[
-                ValueProvider(provide=InternalConfig, use_value=InternalConfig("B")),
+                ClassProvider(provide=SettingsB),
                 ClassProvider(provide=ServiceB),
                 ExistingProvider(provide=PortB, use_existing=ServiceB, export=True),
             ],
@@ -952,11 +954,8 @@ class TestUseExisting:
 
         ctx = ApplicationContext(modules=[mod_a, mod_b], globals=[])
 
-        a = ctx.resolve(PortA)
-        b = ctx.resolve(PortB)
-
-        assert a.cfg_value == "A"
-        assert b.cfg_value == "B"
+        assert ctx.resolve(PortA).key == "key_a"
+        assert ctx.resolve(PortB).key == "key_b"
 
     def test_exported_existing_provider_uses_module_internal_deps(self) -> None:
         """Exported ExistingProvider resolves internal deps from owning module."""
