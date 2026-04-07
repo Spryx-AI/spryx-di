@@ -181,7 +181,7 @@ class TestTransientProvider:
         mod = Module(
             name="test",
             providers=[
-                ClassProvider(provide=SimpleClass, use_class=SimpleClass, scope=Scope.TRANSIENT),
+                ClassProvider(provide=SimpleClass, use_class=SimpleClass, scope=Scope.TRANSIENT, export=True),
             ],
         )
         ctx = ApplicationContext(modules=[mod])

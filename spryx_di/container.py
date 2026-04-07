@@ -21,13 +21,14 @@ T = TypeVar("T")
 class Container:
     """Lightweight type-based dependency injection container."""
 
-    def __init__(self) -> None:
+    def __init__(self, *, auto_wire: bool = True) -> None:
         self._instances: dict[type, Any] = {}
         self._factories: dict[type, Any] = {}
         self._singletons: dict[type, type] = {}
         self._transients: dict[type, type] = {}
         self._singleton_cache: dict[type, Any] = {}
         self._shutdown_hooks: list[Any] = []
+        self._allow_auto_wire = auto_wire
 
     def register(self, interface: type, implementation: type) -> None:
         self._warn_duplicate(interface)
@@ -100,7 +101,7 @@ class Container:
             return self._singletons[type_]
         if type_ in self._transients:
             return self._transients[type_]
-        if self._is_auto_wireable(type_):
+        if self._allow_auto_wire and self._is_auto_wireable(type_):
             return type_
         return None
 
