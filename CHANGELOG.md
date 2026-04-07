@@ -1,6 +1,28 @@
 # CHANGELOG
 
 
+## v3.0.3 (2026-04-07)
+
+### Bug Fixes
+
+- **module**: Resolve exported ExistingProvider from global container
+  ([#14](https://github.com/Spryx-AI/spryx-di/pull/14),
+  [`1b82a35`](https://github.com/Spryx-AI/spryx-di/commit/1b82a35be3e434c8e4a4dd8a6c0cf936a2ad9150))
+
+* fix(module): resolve exported ExistingProvider from global container
+
+The module container only sees globals + own providers and cannot resolve types from other modules.
+  Use the global container (which has all providers from step 7) and pin the result as an instance.
+
+Also removes the singleton cache seeding which was unnecessary and could overwrite entries when two
+  modules shared the same use_existing target.
+
+* test(module): add multi-module ExistingProvider export test
+
+Covers the case where two modules each export via ExistingProvider with distinct internal types,
+  validating both resolve correctly under global-container resolution.
+
+
 ## v3.0.2 (2026-04-07)
 
 ### Bug Fixes
