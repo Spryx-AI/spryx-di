@@ -33,6 +33,19 @@ class UnusedService:
     pass
 
 
+class EvaluatorAbc:
+    pass
+
+
+class DeterministicEvaluator(EvaluatorAbc):
+    pass
+
+
+class Pipeline:
+    def __init__(self, evaluator: EvaluatorAbc) -> None:
+        self.evaluator = evaluator
+
+
 class TestCheckUnusedDependencies:
     def test_warns_for_unused_dependency(self) -> None:
         mod = Module(name="a", providers=[], dependencies=[RepoPort])
@@ -121,6 +134,18 @@ class TestCheckOrphanProviders:
         )
         warnings = _check_orphan_providers([mod])
         assert not any("RepoPort" in w for w in warnings)
+
+    def test_no_warning_for_subclass_satisfying_base_hint(self) -> None:
+        """Provider registers concrete, consumer __init__ asks for ABC."""
+        mod = Module(
+            name="agent",
+            providers=[
+                ClassProvider(provide=DeterministicEvaluator),
+                ClassProvider(provide=Pipeline, public=True),
+            ],
+        )
+        warnings = _check_orphan_providers([mod])
+        assert not any("DeterministicEvaluator" in w for w in warnings)
 
     def test_no_warning_when_used_internally(self) -> None:
         mod = Module(

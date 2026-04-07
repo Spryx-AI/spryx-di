@@ -52,7 +52,11 @@ def _check_orphan_providers(modules: list[Module]) -> list[str]:
                 continue
             if provider.export or provider.public:
                 continue
-            if provider.provide not in needed_types:
+            if not any(
+                hint is provider.provide or issubclass(provider.provide, hint)
+                for hint in needed_types
+                if isinstance(hint, type)
+            ):
                 warnings.append(
                     f"Module '{module.name}' has orphan provider "
                     f"'{provider.provide.__name__}' "
