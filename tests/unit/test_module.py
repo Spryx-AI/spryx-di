@@ -1508,20 +1508,3 @@ class TestDeadCodeWarnings:
         ]
         assert len(unused_dep_warnings) == 0
 
-    def test_exported_provider_no_unused_warning_via_export(
-        self, caplog: pytest.LogCaptureFixture
-    ) -> None:
-        """Exported provider should NOT trigger unused warning even if no internal consumer."""
-        mod = Module(
-            name="agent",
-            providers=[
-                ClassProvider(provide=TeamReader, use_class=PgTeamReader, export=True),
-            ],
-        )
-        with caplog.at_level("WARNING", logger="spryx_di"):
-            ApplicationContext(
-                modules=[mod],
-                globals=[ValueProvider(provide=Database, use_value=Database())],
-            )
-        unused = [r for r in caplog.records if "orphan provider" in r.message]
-        assert len(unused) == 0

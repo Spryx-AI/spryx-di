@@ -227,7 +227,7 @@ class Container:
 
 class ScopedContainer(Container):
     def __init__(self, parent: Container) -> None:
-        super().__init__()
+        super().__init__(auto_wire=parent._allow_auto_wire)
         self._parent = parent
 
     def has(self, type_: type) -> bool:

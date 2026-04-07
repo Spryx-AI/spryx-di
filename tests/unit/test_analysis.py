@@ -143,7 +143,7 @@ class TestCheckOrphanProviders:
         warnings = _check_orphan_providers([mod])
         assert len(warnings) == 0
 
-    def test_no_warning_for_exported(self) -> None:
+    def test_no_warning_for_exported_class_provider(self) -> None:
         mod = Module(
             name="agent",
             providers=[ClassProvider(provide=MyService, export=True)],

@@ -322,15 +322,26 @@ class ApplicationContext:
             allowed.add(EventBus)
 
         pub = Container(auto_wire=False)
+        transient_types = self._transient_exported_types()
         for t in allowed:
             if t in self._boot_container._instances:
                 pub._instances[t] = self._boot_container._instances[t]
-            elif t in self._boot_container._transients:
+            elif t in transient_types:
                 pub._factories[t] = lambda c, _t=t: self._boot_container.resolve(_t)
             else:
                 instance = self._boot_container.resolve(t)
                 pub._instances[t] = instance
         return pub
+
+    def _transient_exported_types(self) -> set[type]:
+        result: set[type] = set()
+        for module in self._modules:
+            for item in module.providers:
+                provider = _normalize_provider(item)
+                if provider.export and isinstance(provider, (ClassProvider, FactoryProvider)):
+                    if provider.scope == Scope.TRANSIENT:
+                        result.add(provider.provide)
+        return result
 
     def _build_module_container(
         self,
