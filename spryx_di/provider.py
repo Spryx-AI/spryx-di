@@ -25,7 +25,6 @@ class ClassProvider:
     use_class: type | None = None
     scope: Scope = Scope.SINGLETON
     export: bool = False
-    public: bool = False
 
     def __post_init__(self) -> None:
         if self.use_class is None:
@@ -42,7 +41,6 @@ class FactoryProvider:
     args: dict[str, Any] = field(default_factory=dict)  # str -> Callable[[Container], Any]
     scope: Scope = Scope.SINGLETON
     export: bool = False
-    public: bool = False
 
     def __post_init__(self) -> None:
         if self.use_factory is None and not self.deps and not self.args:
@@ -60,7 +58,6 @@ class ValueProvider:
     provide: type
     use_value: Any
     export: bool = False
-    public: bool = False
 
 
 @dataclass(frozen=True)
@@ -70,12 +67,6 @@ class ExistingProvider:
     provide: type
     use_existing: type
     export: bool = False
-    public: bool = False
 
 
 Provider = ClassProvider | FactoryProvider | ValueProvider | ExistingProvider
-
-
-def public(*types: type) -> list[ClassProvider]:
-    """Helper to declare multiple types as public ClassProviders."""
-    return [ClassProvider(provide=t, use_class=t, public=True) for t in types]
