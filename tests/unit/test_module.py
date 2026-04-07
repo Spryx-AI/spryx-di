@@ -14,6 +14,7 @@ from spryx_di import (
     Module,
     ModuleBoundaryError,
     Scope,
+    UnresolvableTypeError,
     UnresolvedDependencyError,
     ValueProvider,
     public,
@@ -122,7 +123,7 @@ class TestModuleDefinition:
             providers=[PgTeamReader],
         )
         ctx = ApplicationContext(modules=[module])
-        reader = ctx.resolve(PgTeamReader)
+        reader = ctx.resolve_within(module, PgTeamReader)
         assert isinstance(reader, PgTeamReader)
 
 
@@ -255,6 +256,28 @@ class TestApplicationContext:
         # Cannot access non-exported provider from another module
         with pytest.raises(ModuleBoundaryError):
             ctx.resolve_within(consumer, TeamReader)
+
+    def test_non_exported_provider_not_resolvable_from_global(self) -> None:
+        """ctx.resolve() must not expose internal providers without export=True."""
+        identity = Module(
+            name="identity",
+            providers=[
+                ClassProvider(provide=TeamReader, use_class=PgTeamReader),  # not exported
+                ExistingProvider(provide=TeamReaderPort, use_existing=TeamReader, export=True),
+            ],
+        )
+        db = Database()
+        ctx = ApplicationContext(
+            modules=[identity],
+            globals=[ValueProvider(provide=Database, use_value=db)],
+        )
+
+        # Exported port is resolvable
+        assert isinstance(ctx.resolve(TeamReaderPort), PgTeamReader)
+
+        # Internal provider must NOT be resolvable from global
+        with pytest.raises(UnresolvableTypeError):
+            ctx.resolve(TeamReader)
 
 
 class TestModuleBoundary:
@@ -454,7 +477,7 @@ class TestCircularDependencies:
         mod_b = Module(
             name="b",
             providers=[
-                ClassProvider(provide=BillingGateway, use_class=StripeBillingGateway),
+                ClassProvider(provide=BillingGateway, use_class=StripeBillingGateway, export=True),
             ],
             dependencies=[TeamReaderPort],
         )
@@ -585,7 +608,7 @@ class TestUseFactory:
         mod = Module(
             name="test",
             providers=[
-                FactoryProvider(provide=Database, use_factory=counting_factory),
+                FactoryProvider(provide=Database, use_factory=counting_factory, export=True),
             ],
         )
         ctx = ApplicationContext(modules=[mod])
@@ -606,8 +629,8 @@ class TestUseFactory:
             ],
         )
         ctx = ApplicationContext(modules=[mod])
-        a = ctx.resolve(Database)
-        b = ctx.resolve(Database)
+        a = ctx.resolve_within(mod, Database)
+        b = ctx.resolve_within(mod, Database)
         assert a is not b
 
 
@@ -661,7 +684,7 @@ class TestFactoryProviderDepsArgs:
         mod = Module(
             name="test",
             providers=[
-                FactoryProvider(provide=PgTeamReader, deps={"db": Database}),
+                FactoryProvider(provide=PgTeamReader, deps={"db": Database}, export=True),
             ],
         )
         ctx = ApplicationContext(
@@ -716,6 +739,7 @@ class TestFactoryProviderDepsArgs:
                 FactoryProvider(
                     provide=Client,
                     args={"api_key": lambda c: c.resolve(Settings).api_key},
+                    export=True,
                 ),
             ],
         )
@@ -743,6 +767,7 @@ class TestFactoryProviderDepsArgs:
                         "api_key": lambda c: "key-456",
                         "debug": lambda c: True,
                     },
+                    export=True,
                 ),
             ],
         )
@@ -761,7 +786,7 @@ class TestFactoryProviderDepsArgs:
         mod = Module(
             name="test",
             providers=[
-                FactoryProvider(provide=PgTeamReader, deps={"db": Database}),
+                FactoryProvider(provide=PgTeamReader, deps={"db": Database}, export=True),
             ],
         )
         db = Database()
@@ -789,8 +814,8 @@ class TestFactoryProviderDepsArgs:
             modules=[mod],
             globals=[ValueProvider(provide=Database, use_value=db)],
         )
-        a = ctx.resolve(PgTeamReader)
-        b = ctx.resolve(PgTeamReader)
+        a = ctx.resolve_within(mod, PgTeamReader)
+        b = ctx.resolve_within(mod, PgTeamReader)
         assert a is not b
         assert a.db is db
 
@@ -881,7 +906,7 @@ class TestUseExisting:
             name="identity",
             providers=[
                 ClassProvider(provide=TeamReader, use_class=PgTeamReader),
-                ExistingProvider(provide=UserReader, use_existing=TeamReader),
+                ExistingProvider(provide=UserReader, use_existing=TeamReader, export=True),
             ],
         )
         ctx = ApplicationContext(
@@ -902,7 +927,7 @@ class TestUseExisting:
         consumer = Module(
             name="consumer",
             providers=[
-                ExistingProvider(provide=UserReader, use_existing=TeamReaderPort),
+                ExistingProvider(provide=UserReader, use_existing=TeamReaderPort, export=True),
             ],
             dependencies=[TeamReaderPort],
         )
