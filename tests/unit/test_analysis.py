@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Protocol, runtime_checkable
+
 from spryx_di import ApplicationContext, ClassProvider, ExistingProvider, FactoryProvider, Module
 from spryx_di.analysis import (
     _check_orphan_providers,
@@ -54,6 +56,21 @@ class WebhookRepo:
 class DriveSubscription:
     def __init__(self, repo: WebhookRepo) -> None:
         self.repo = repo
+
+
+@runtime_checkable
+class HasName(Protocol):
+    name: str
+
+
+class ProtocolConsumer:
+    def __init__(self, item: HasName) -> None:
+        self.item = item
+
+
+class Named:
+    def __init__(self, name: str) -> None:
+        self.name = name
 
 
 class TestCheckUnusedDependencies:
@@ -192,6 +209,19 @@ class TestCheckOrphanProviders:
         )
         warnings = _check_orphan_providers([mod])
         assert not any("WebhookRepo" in w for w in warnings)
+
+    def test_no_crash_with_protocol_hint(self) -> None:
+        """Protocols with non-method members don't support issubclass()."""
+        mod = Module(
+            name="test",
+            providers=[
+                ClassProvider(provide=ProtocolConsumer, public=True),
+                ClassProvider(provide=Named),
+            ],
+        )
+        # Without the try/except in _is_needed, this raises:
+        # TypeError: Protocols with non-method members don't support issubclass()
+        _check_orphan_providers([mod])
 
     def test_no_warning_when_used_internally(self) -> None:
         mod = Module(
