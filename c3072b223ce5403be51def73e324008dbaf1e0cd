@@ -1,0 +1,23 @@
+spryx_di/provider.py
+  4ea947143822eb49 37
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.5",
+  "base_commit_sha": "c3072b223ce5403be51def73e324008dbaf1e0cd",
+  "prompts": {
+    "4ea947143822eb49": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "54a7521f-5648-40a7-941d-b0908dd76df1",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Pedro Cantidio",
+      "messages": [],
+      "total_additions": 1,
+      "total_deletions": 8,
+      "accepted_lines": 1,
+      "overriden_lines": 0
+    }
+  }
+}
