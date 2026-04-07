@@ -228,6 +228,34 @@ class TestApplicationContext:
         port = ctx.resolve_within(conversations, TeamReaderPort)
         assert isinstance(port, PgTeamReader)
 
+    def test_internal_providers_auto_wired_within_module(self) -> None:
+        """Non-exported providers are resolved with full auto-wiring inside their module."""
+
+        class Settings:
+            dsn = "postgres://localhost"
+
+        class Repo:
+            def __init__(self, settings: Settings) -> None:
+                self.dsn = settings.dsn
+
+        class UseCase:
+            def __init__(self, repo: Repo) -> None:
+                self.repo = repo
+
+        mod = Module(
+            name="core",
+            providers=[
+                ClassProvider(provide=Settings),
+                ClassProvider(provide=Repo),
+                ClassProvider(provide=UseCase),
+            ],
+        )
+        ctx = ApplicationContext(modules=[mod], globals=[])
+
+        uc = ctx.resolve_within(mod, UseCase)
+        assert isinstance(uc.repo, Repo)
+        assert uc.repo.dsn == "postgres://localhost"
+
     def test_provider_without_export_not_visible_to_other_modules(self) -> None:
         """Providers without export=True should not be visible to other modules."""
         identity = Module(
