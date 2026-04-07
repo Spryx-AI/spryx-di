@@ -201,3 +201,44 @@ class TestProtocolABCDetection:
         container.register(_MyABC, _ConcreteFromABC)
         result = container.resolve(_MyABC)
         assert isinstance(result, _ConcreteFromABC)
+
+
+# ── Partial hint resolution (TYPE_CHECKING scenario) ─────────────
+
+
+class _TypeCheckingOnlyDep:
+    pass
+
+
+class _RegisteredDep:
+    pass
+
+
+class _ServiceWithMixedHints:
+    def __init__(
+        self, registered: _RegisteredDep, unavailable: _TypeCheckingOnlyDep | None = None
+    ) -> None:
+        self.registered = registered
+        self.unavailable = unavailable
+
+
+class TestPartialHintResolution:
+    def test_resolves_available_hints_when_get_type_hints_fails_partially(
+        self, container: Container
+    ) -> None:
+
+        container.register(_RegisteredDep, _RegisteredDep)
+        container.register(_ServiceWithMixedHints, _ServiceWithMixedHints)
+
+        # Simulate TYPE_CHECKING: remove _TypeCheckingOnlyDep from the module
+        # so get_type_hints can't resolve it
+        import test_autowiring_fixes as mod
+
+        original = mod._TypeCheckingOnlyDep
+        delattr(mod, "_TypeCheckingOnlyDep")
+        try:
+            result = container.resolve(_ServiceWithMixedHints)
+            assert isinstance(result, _ServiceWithMixedHints)
+            assert isinstance(result.registered, _RegisteredDep)
+        finally:
+            mod._TypeCheckingOnlyDep = original

@@ -200,7 +200,19 @@ class Container:
                 raw.pop("return", None)
                 return raw
             except Exception:
-                return {}
+                # Resolve each annotation individually (get_type_hints is all-or-nothing).
+                annotations = getattr(init, "__annotations__", {})
+                result: dict[str, type] = {}
+                for name, ann in annotations.items():
+                    if name == "return":
+                        continue
+                    if isinstance(ann, str):
+                        try:
+                            ann = eval(ann, globalns)  # noqa: S307
+                        except Exception:
+                            continue
+                    result[name] = ann
+                return result
 
     def _warn_duplicate(self, type_: type) -> None:
         if self.has(type_):
