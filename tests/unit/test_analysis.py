@@ -124,16 +124,36 @@ class TestCheckOrphanProviders:
         warnings = _check_orphan_providers([mod])
         assert len(warnings) == 0
 
-    def test_no_warning_for_existing_provider(self) -> None:
+    def test_no_warning_for_existing_provider_target(self) -> None:
+        """PgRepo is target of ExistingProvider — not orphan."""
         mod = Module(
             name="agent",
             providers=[
                 ClassProvider(provide=PgRepo),
-                ExistingProvider(provide=RepoPort, use_existing=PgRepo),
+                ExistingProvider(provide=RepoPort, use_existing=PgRepo, export=True),
             ],
         )
         warnings = _check_orphan_providers([mod])
-        assert not any("RepoPort" in w for w in warnings)
+        assert not any("PgRepo" in w for w in warnings)
+
+    def test_warns_for_unused_existing_provider(self) -> None:
+        """ExistingProvider whose port nobody uses is orphan."""
+
+        class UsageReaderPort:
+            pass
+
+        class PgUsageReader:
+            pass
+
+        mod = Module(
+            name="agent",
+            providers=[
+                ClassProvider(provide=PgUsageReader),
+                ExistingProvider(provide=UsageReaderPort, use_existing=PgUsageReader),
+            ],
+        )
+        warnings = _check_orphan_providers([mod])
+        assert any("UsageReaderPort" in w for w in warnings)
 
     def test_no_warning_for_subclass_satisfying_base_hint(self) -> None:
         """Provider registers concrete, consumer __init__ asks for ABC."""
