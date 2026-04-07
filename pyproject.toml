@@ -1,6 +1,6 @@
 [project]
 name = "spryx-di"
-version = "3.0.5"
+version = "3.0.6"
 description = "Lightweight type-based dependency injection for Python modular monoliths"
 readme = "README.md"
 license = { text = "MIT" }
