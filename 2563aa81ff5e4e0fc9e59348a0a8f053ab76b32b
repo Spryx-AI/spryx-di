@@ -1,0 +1,23 @@
+tests/unit/test_analysis.py
+  4ea947143822eb49 3-4,61-75,217-220,222-223
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.5",
+  "base_commit_sha": "2563aa81ff5e4e0fc9e59348a0a8f053ab76b32b",
+  "prompts": {
+    "4ea947143822eb49": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "54a7521f-5648-40a7-941d-b0908dd76df1",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Pedro Cantidio",
+      "messages": [],
+      "total_additions": 64,
+      "total_deletions": 27,
+      "accepted_lines": 81,
+      "overriden_lines": 0
+    }
+  }
+}
