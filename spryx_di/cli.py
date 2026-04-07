@@ -124,11 +124,6 @@ def info(app_path: AppOption = None) -> None:
             for p in module.providers
             if _normalize_provider(p).export
         ]
-        publics = [
-            _normalize_provider(p).provide.__name__
-            for p in module.providers
-            if _normalize_provider(p).public
-        ]
         typer.echo(
             f"{module.name} "
             f"({len(module.providers)} providers, "
@@ -140,8 +135,6 @@ def info(app_path: AppOption = None) -> None:
         if module.dependencies:
             dep_names = ", ".join(d.__name__ for d in module.dependencies)
             typer.echo(f"  dependencies: {dep_names}")
-        if publics:
-            typer.echo(f"  public: {', '.join(publics)}")
         typer.echo()
 
 

@@ -17,7 +17,6 @@ from spryx_di import (
     UnresolvableTypeError,
     UnresolvedDependencyError,
     ValueProvider,
-    public,
 )
 
 
@@ -709,7 +708,7 @@ class TestFactoryProviderDepsArgs:
                 FactoryProvider(
                     provide=ServiceWithTwoDeps,
                     deps={"reader": TeamReader, "repo": TeamRepository},
-                    public=True,
+                    export=True,
                 ),
             ],
         )
@@ -829,7 +828,7 @@ class TestFactoryProviderDepsArgs:
                 FactoryProvider(
                     provide=PgTeamReader,
                     deps={"db": Database},
-                    public=True,
+                    export=True,
                 ),
             ],
         )
@@ -1360,12 +1359,14 @@ class TestDeadCodeWarnings:
         ]
         assert len(unused_dep_warnings) == 0
 
-    def test_public_provider_no_unused_warning(self, caplog: pytest.LogCaptureFixture) -> None:
-        """Public provider should NOT trigger unused warning even if no internal consumer."""
+    def test_exported_provider_no_unused_warning_via_export(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """Exported provider should NOT trigger unused warning even if no internal consumer."""
         mod = Module(
             name="agent",
             providers=[
-                ClassProvider(provide=TeamReader, use_class=PgTeamReader, public=True),
+                ClassProvider(provide=TeamReader, use_class=PgTeamReader, export=True),
             ],
         )
         with caplog.at_level("WARNING", logger="spryx_di"):
@@ -1375,88 +1376,3 @@ class TestDeadCodeWarnings:
             )
         unused = [r for r in caplog.records if "orphan provider" in r.message]
         assert len(unused) == 0
-
-
-class TestPublicHelper:
-    def test_public_creates_class_providers(self) -> None:
-        providers = public(TeamReader, ConversationRepo)
-        assert len(providers) == 2
-        assert all(isinstance(p, ClassProvider) for p in providers)
-        assert all(p.public is True for p in providers)
-        assert all(p.export is False for p in providers)
-        assert providers[0].provide is TeamReader
-        assert providers[0].use_class is TeamReader
-        assert providers[1].provide is ConversationRepo
-        assert providers[1].use_class is ConversationRepo
-
-    def test_public_providers_resolvable(self) -> None:
-        mod = Module(
-            name="agent",
-            providers=[
-                *public(PgConversationRepo),
-            ],
-        )
-        ctx = ApplicationContext(modules=[mod])
-        assert isinstance(ctx.resolve(PgConversationRepo), PgConversationRepo)
-
-
-class TestIsPublic:
-    def test_is_public_returns_true_for_public_provider(self) -> None:
-        mod = Module(
-            name="agent",
-            providers=[ClassProvider(provide=TeamReader, use_class=PgTeamReader, public=True)],
-        )
-        ctx = ApplicationContext(
-            modules=[mod],
-            globals=[ValueProvider(provide=Database, use_value=Database())],
-        )
-        assert ctx.is_public(TeamReader) is True
-
-    def test_is_public_returns_false_for_internal_provider(self) -> None:
-        mod = Module(
-            name="agent",
-            providers=[ClassProvider(provide=TeamReader, use_class=PgTeamReader)],
-        )
-        ctx = ApplicationContext(
-            modules=[mod],
-            globals=[ValueProvider(provide=Database, use_value=Database())],
-        )
-        assert ctx.is_public(TeamReader) is False
-
-    def test_is_public_returns_false_for_export_only(self) -> None:
-        mod = Module(
-            name="agent",
-            providers=[ClassProvider(provide=TeamReader, use_class=PgTeamReader, export=True)],
-        )
-        ctx = ApplicationContext(
-            modules=[mod],
-            globals=[ValueProvider(provide=Database, use_value=Database())],
-        )
-        assert ctx.is_public(TeamReader) is False
-
-    def test_is_public_returns_true_for_export_and_public(self) -> None:
-        mod = Module(
-            name="agent",
-            providers=[
-                ClassProvider(provide=TeamReader, use_class=PgTeamReader, export=True, public=True)
-            ],
-        )
-        ctx = ApplicationContext(
-            modules=[mod],
-            globals=[ValueProvider(provide=Database, use_value=Database())],
-        )
-        assert ctx.is_public(TeamReader) is True
-
-    def test_is_public_returns_true_for_public_global(self) -> None:
-        ctx = ApplicationContext(
-            modules=[],
-            globals=[ValueProvider(provide=Database, use_value=Database(), public=True)],
-        )
-        assert ctx.is_public(Database) is True
-
-    def test_is_public_returns_false_for_non_public_global(self) -> None:
-        ctx = ApplicationContext(
-            modules=[],
-            globals=[ValueProvider(provide=Database, use_value=Database())],
-        )
-        assert ctx.is_public(Database) is False

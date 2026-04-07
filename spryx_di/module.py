@@ -224,14 +224,13 @@ class ApplicationContext:
         self._module_containers: dict[str, Container] = {}
         self._provider_to_module: dict[type, str] = {}
         self._export_registry: dict[type, str] = {}
-        self._public_types: set[type] = set()
         self._managed_instances: list[object] = []
         self._event_registry: dict[str, type] = {}
         self._handler_registry: dict[str, type[EventHandler]] = {}
         self._boot()
 
     def _boot(self) -> None:
-        # 1. Build export registry and public set from providers
+        # 1. Build export registry from providers
         for module in self._modules:
             for item in module.providers:
                 provider = _normalize_provider(item)
@@ -243,16 +242,12 @@ class ApplicationContext:
                             module.name,
                         )
                     self._export_registry[provider.provide] = module.name
-                if provider.public:
-                    self._public_types.add(provider.provide)
 
         # 2. Collect global types for dependency validation
         global_types: set[type] = set()
         for item in self._globals:
             provider = _normalize_provider(item)
             global_types.add(provider.provide)
-            if provider.public:
-                self._public_types.add(provider.provide)
 
         # 3. Validate every dependency is satisfied by some export or global
         for module in self._modules:
@@ -311,7 +306,7 @@ class ApplicationContext:
         self._boot_event_system()
         self._collect_managed_instances()
 
-        # 11. Build public container (only globals + exports + public).
+        # 11. Build public container (only globals + exports).
         #     The boot container keeps all providers for internal use
         #     (EventBus handler resolution, module containers, etc.).
         self._container = self._build_public_container()
@@ -323,7 +318,6 @@ class ApplicationContext:
         for item in self._globals:
             allowed.add(_normalize_provider(item).provide)
         allowed.update(self._export_registry)
-        allowed.update(self._public_types)
         if self._boot_container.has(EventBus):
             allowed.add(EventBus)
 
@@ -467,9 +461,6 @@ class ApplicationContext:
     @property
     def handler_registry(self) -> dict[str, type[EventHandler]]:
         return self._handler_registry
-
-    def is_public(self, type_: type) -> bool:
-        return type_ in self._public_types
 
     def _collect_managed_instances(self) -> None:
         seen: set[int] = set()
