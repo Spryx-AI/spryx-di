@@ -1,6 +1,25 @@
 # CHANGELOG
 
 
+## v3.0.5 (2026-04-07)
+
+### Bug Fixes
+
+- **module**: Eagerly resolve all providers at boot for fail-fast
+  ([#16](https://github.com/Spryx-AI/spryx-di/pull/16),
+  [`3a81ac8`](https://github.com/Spryx-AI/spryx-di/commit/3a81ac83dfb94d824b5d9474052f825bb4ebfe14))
+
+* fix(module): eagerly resolve all providers at boot for fail-fast validation
+
+Step 8c resolves every provider in each module container during boot. If any provider has an
+  unresolvable dependency, the error is raised immediately instead of being deferred to runtime.
+
+* refactor(analysis): remove unconsumed export warning
+
+Exports can be consumed by FastAPI Inject() endpoints, not just module dependencies. The "no module
+  depends on it" warning was producing false positives.
+
+
 ## v3.0.4 (2026-04-07)
 
 ### Bug Fixes
