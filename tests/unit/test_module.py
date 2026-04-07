@@ -354,6 +354,80 @@ class TestApplicationContext:
         assert isinstance(result.repo, Repo)
 
 
+class TestCrossModuleExportVisibility:
+    def test_non_exported_service_not_available_as_dependency(self) -> None:
+        """A module cannot depend on a port that is not exported."""
+        from typing import Protocol
+
+        class EmailPort(Protocol):
+            def send(self) -> None: ...
+
+        class SmtpService:
+            def send(self) -> None:
+                pass
+
+        notification = Module(
+            name="notification",
+            providers=[
+                ClassProvider(provide=SmtpService),
+                ExistingProvider(provide=EmailPort, use_existing=SmtpService),  # no export
+            ],
+        )
+
+        class SendInvite:
+            def __init__(self, email: EmailPort) -> None:
+                self.email = email
+
+        identity = Module(
+            name="identity",
+            providers=[ClassProvider(provide=SendInvite)],
+            dependencies=[EmailPort],
+        )
+
+        with pytest.raises(UnresolvedDependencyError):
+            ApplicationContext(
+                modules=[notification, identity],
+                globals=[],
+            )
+
+    def test_exported_service_available_as_dependency(self) -> None:
+        """A module can depend on an exported port from another module."""
+        from typing import Protocol
+
+        class EmailPort(Protocol):
+            def send(self) -> None: ...
+
+        class SmtpService:
+            def send(self) -> None:
+                pass
+
+        notification = Module(
+            name="notification",
+            providers=[
+                ClassProvider(provide=SmtpService),
+                ExistingProvider(provide=EmailPort, use_existing=SmtpService, export=True),
+            ],
+        )
+
+        class SendInvite:
+            def __init__(self, email: EmailPort) -> None:
+                self.email = email
+
+        identity = Module(
+            name="identity",
+            providers=[ClassProvider(provide=SendInvite)],
+            dependencies=[EmailPort],
+        )
+
+        ctx = ApplicationContext(
+            modules=[notification, identity],
+            globals=[],
+        )
+
+        invite = ctx.resolve_within(identity, SendInvite)
+        assert isinstance(invite.email, SmtpService)
+
+
 class TestModuleBoundary:
     def test_boundary_violation_raises(self) -> None:
         identity = Module(
