@@ -1,0 +1,31 @@
+spryx_di/analysis.py
+  4ea947143822eb49 6,43-46
+spryx_di/provider.py
+  4ea947143822eb49 3,37,39-44,47-49,54-60
+tests/unit/test_analysis.py
+  4ea947143822eb49 3,9,36-48,50-58,114-124,127-128,133,137-156,180-195
+spryx_di/module.py
+  4ea947143822eb49 13,92-147,162-177,182-183,235-243,245-248,252,259,263,267,296,306-307,311-312,325
+tests/unit/test_module.py
+  4ea947143822eb49 3-4,10,358-359,379-380,384-388,390-391,417-422,424-443,614-702,704-727,729-730,732-733,740,742-745,753-756,758,760-774,776-795,797-799,814-856
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.5",
+  "base_commit_sha": "4ea651e7ad0e26de39ad3d947c6d9509fb23f1bd",
+  "prompts": {
+    "4ea947143822eb49": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "54a7521f-5648-40a7-941d-b0908dd76df1",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Pedro Cantidio",
+      "messages": [],
+      "total_additions": 195,
+      "total_deletions": 25,
+      "accepted_lines": 443,
+      "overriden_lines": 0
+    }
+  }
+}
