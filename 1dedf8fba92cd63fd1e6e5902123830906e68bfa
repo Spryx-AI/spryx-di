@@ -1,0 +1,25 @@
+spryx_di/analysis.py
+  4ea947143822eb49 49-50,52-55,60
+tests/unit/test_analysis.py
+  4ea947143822eb49 127-128,133,137-156
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.5",
+  "base_commit_sha": "1dedf8fba92cd63fd1e6e5902123830906e68bfa",
+  "prompts": {
+    "4ea947143822eb49": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "54a7521f-5648-40a7-941d-b0908dd76df1",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Pedro Cantidio",
+      "messages": [],
+      "total_additions": 32,
+      "total_deletions": 5,
+      "accepted_lines": 32,
+      "overriden_lines": 0
+    }
+  }
+}
