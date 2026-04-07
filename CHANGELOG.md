@@ -1,6 +1,61 @@
 # CHANGELOG
 
 
+## v3.0.4 (2026-04-07)
+
+### Bug Fixes
+
+- **module**: Restrict global container to exported and global types
+  ([#15](https://github.com/Spryx-AI/spryx-di/pull/15),
+  [`c168bfb`](https://github.com/Spryx-AI/spryx-di/commit/c168bfb8316249881f9128d2dc3a3c0f6a6d4e9e))
+
+* fix(module): restrict global container to exported/public/global types
+
+The global container (used by ctx.resolve() and FastAPI integration) was exposing all module
+  providers regardless of export flag. Internal providers could leak across module boundaries via
+  auto-wiring.
+
+After boot, a public container is built containing only globals, exported providers, and public
+  providers. The full boot container is kept internally for EventBus handler resolution, module
+  container building, and shutdown lifecycle.
+
+The public container uses auto_wire=False so unregistered types cannot be implicitly constructed.
+
+* refactor(provider): remove public concept, use export as sole visibility flag
+
+The public field and is_public/PublicAccessError were redundant now that the global container is
+  restricted to exported + global types. Providers that need to be accessible outside their module
+  should use export=True. The FastAPI integration no longer needs a separate is_public gate since
+  the container itself enforces boundaries.
+
+* test(module): validate internal providers auto-wire within module
+
+Covers the case where all providers are export=False and resolved via resolve_within with full
+  dependency chain (UseCase → Repo → Settings).
+
+* test(module): validate Inject() path for exported and non-exported use cases
+
+Simulates the FastAPI Inject() path (ctx.container.resolve) to confirm that a use case with
+  export=False is rejected and one with export=True resolves correctly with its internal repository
+  dependency auto-wired.
+
+* test(module): validate cross-module dependency requires export=True
+
+Two scenarios with notification and identity modules: - ExistingProvider without export raises
+  UnresolvedDependencyError - ExistingProvider with export=True allows the dependency and resolves
+
+* fix: resolve duplicate tests, scoped auto_wire, and transient export
+
+- Rename duplicate test_no_warning_for_exported in test_analysis.py - Remove duplicate
+  test_exported_provider_no_unused_warning_via_export - Propagate auto_wire flag from parent in
+  ScopedContainer - Fix transient FactoryProvider exports being pinned as singletons in the public
+  container by checking provider scope metadata
+
+* style: fix ruff lint errors (SIM102, E501)
+
+* style: fix trailing newline in test_module.py
+
+
 ## v3.0.3 (2026-04-07)
 
 ### Bug Fixes
