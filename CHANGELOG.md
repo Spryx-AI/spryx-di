@@ -1,6 +1,27 @@
 # CHANGELOG
 
 
+## v3.0.6 (2026-04-07)
+
+### Bug Fixes
+
+- **container**: Resolve type hints individually when get_type_hints fails
+  ([#17](https://github.com/Spryx-AI/spryx-di/pull/17),
+  [`e810b0d`](https://github.com/Spryx-AI/spryx-di/commit/e810b0d4f678a1a2fa9f032b65995f531b77434f))
+
+* fix(container): resolve type hints individually when get_type_hints fails
+
+typing.get_type_hints() is all-or-nothing: if any annotation cannot be resolved (e.g. TYPE_CHECKING
+  imports), none are returned. When the bulk call fails, fall back to evaluating each annotation
+  string individually so resolvable hints still work.
+
+* fix(container): handle non-string and union annotations in hint fallback
+
+The per-annotation fallback was dropping already-resolved type annotations and filtering out union
+  types like Repo | None. Both cases are now passed through to _auto_wire which already handles
+  unwrapping via _unwrap_optional.
+
+
 ## v3.0.5 (2026-04-07)
 
 ### Bug Fixes
