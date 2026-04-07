@@ -5,7 +5,6 @@ from typing import Protocol, runtime_checkable
 from spryx_di import ApplicationContext, ClassProvider, ExistingProvider, FactoryProvider, Module
 from spryx_di.analysis import (
     _check_orphan_providers,
-    _check_unconsumed_exports,
     _check_unused_dependencies,
 )
 from spryx_di.container import Container
@@ -99,31 +98,6 @@ class TestCheckUnusedDependencies:
         warnings = _check_unused_dependencies(ctx._modules)
         consumer_warnings = [w for w in warnings if "consumer" in w]
         assert len(consumer_warnings) == 0
-
-
-class TestCheckUnconsumedExports:
-    def test_warns_for_unconsumed_export(self) -> None:
-        mod = Module(
-            name="billing",
-            providers=[ClassProvider(provide=RepoPort, use_class=PgRepo, export=True)],
-        )
-        ctx = ApplicationContext(modules=[mod])
-        warnings = _check_unconsumed_exports(ctx)
-        assert any("RepoPort" in w and "billing" in w for w in warnings)
-
-    def test_no_warning_when_export_consumed(self) -> None:
-        exporter = Module(
-            name="exporter",
-            providers=[ClassProvider(provide=RepoPort, use_class=PgRepo, export=True)],
-        )
-        consumer = Module(
-            name="consumer",
-            providers=[ClassProvider(provide=MyService)],
-            dependencies=[RepoPort],
-        )
-        ctx = ApplicationContext(modules=[exporter, consumer])
-        warnings = _check_unconsumed_exports(ctx)
-        assert len(warnings) == 0
 
 
 class TestCheckOrphanProviders:

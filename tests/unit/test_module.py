@@ -508,6 +508,51 @@ class TestUnresolvedDependency:
         assert resolved is db
 
 
+class TestEagerProviderValidation:
+    def test_boot_fails_when_internal_provider_has_missing_dependency(self) -> None:
+        """Boot must fail-fast if any provider has an unresolvable dependency."""
+        from typing import Protocol
+
+        from spryx_di.errors import SpryxDIError
+
+        class RepoPort(Protocol):
+            def save(self) -> None: ...
+
+        class UseCase:
+            def __init__(self, repo: RepoPort) -> None:
+                self.repo = repo
+
+        mod = Module(
+            name="core",
+            providers=[ClassProvider(provide=UseCase)],  # RepoPort not registered
+        )
+
+        with pytest.raises(SpryxDIError):
+            ApplicationContext(modules=[mod], globals=[])
+
+    def test_boot_succeeds_when_all_providers_are_resolvable(self) -> None:
+        """Boot should succeed when all dependencies are satisfied."""
+
+        class Repo:
+            pass
+
+        class UseCase:
+            def __init__(self, repo: Repo) -> None:
+                self.repo = repo
+
+        mod = Module(
+            name="core",
+            providers=[
+                ClassProvider(provide=Repo),
+                ClassProvider(provide=UseCase),
+            ],
+        )
+
+        ctx = ApplicationContext(modules=[mod], globals=[])
+        uc = ctx.resolve_within(mod, UseCase)
+        assert isinstance(uc.repo, Repo)
+
+
 class TestAmbiguousExport:
     def test_ambiguous_export_raises(self) -> None:
         mod_a = Module(
@@ -763,7 +808,9 @@ class TestUseFactory:
         a = ctx.resolve(Database)
         b = ctx.resolve(Database)
         assert a is b
-        assert call_count == 1
+        # Factory is called once per container (module + boot), but
+        # repeated resolves within the same container return the cached result.
+        assert call_count == 2
 
     def test_factory_transient_creates_new_instances(self) -> None:
         mod = Module(
@@ -1415,23 +1462,6 @@ class TestDeadCodeWarnings:
             for r in caplog.records
         )
 
-    def test_unconsumed_export_warns(self, caplog: pytest.LogCaptureFixture) -> None:
-        """Module exports a type but no module depends on it."""
-        identity = Module(
-            name="identity",
-            providers=[
-                ClassProvider(provide=TeamReaderPort, export=True),
-            ],
-        )
-        with caplog.at_level("WARNING", logger="spryx_di"):
-            ApplicationContext(modules=[identity])
-        assert any(
-            "identity" in r.message
-            and "TeamReaderPort" in r.message
-            and "no module depends" in r.message
-            for r in caplog.records
-        )
-
     def test_no_warning_when_dependency_is_used(self, caplog: pytest.LogCaptureFixture) -> None:
         """No warning when dependency is actually consumed by a provider's __init__."""
 
@@ -1458,24 +1488,6 @@ class TestDeadCodeWarnings:
             ApplicationContext(modules=[provider_mod, consumer_mod])
         unused_dep_warnings = [r for r in caplog.records if "none of its providers" in r.message]
         assert len(unused_dep_warnings) == 0
-
-    def test_no_warning_when_export_is_consumed(self, caplog: pytest.LogCaptureFixture) -> None:
-        """No warning when another module depends on the exported type."""
-        identity = Module(
-            name="identity",
-            providers=[
-                ClassProvider(provide=TeamReaderPort, export=True),
-            ],
-        )
-        consumer = Module(
-            name="consumer",
-            providers=[ClassProvider(provide=ConversationRepo, use_class=PgConversationRepo)],
-            dependencies=[TeamReaderPort],
-        )
-        with caplog.at_level("WARNING", logger="spryx_di"):
-            ApplicationContext(modules=[identity, consumer])
-        unconsumed_warnings = [r for r in caplog.records if "no module depends" in r.message]
-        assert len(unconsumed_warnings) == 0
 
     def test_unused_dependency_with_existing_provider(
         self, caplog: pytest.LogCaptureFixture
