@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import logging
+
 import pytest
 
 from spryx_di import (
     AmbiguousExportError,
     ApplicationContext,
-    CircularDependencyInModulesError,
+    CircularDependencyError,
     ClassProvider,
     ExistingProvider,
     FactoryProvider,
@@ -353,8 +355,8 @@ class TestAmbiguousExport:
 
 
 class TestCircularDependencies:
-    def test_direct_circular_raises(self) -> None:
-        """A depends on B, B depends on A → cycle."""
+    def test_direct_circular_warns(self, caplog: pytest.LogCaptureFixture) -> None:
+        """A depends on B, B depends on A → warning, not error."""
         mod_a = Module(
             name="a",
             providers=[
@@ -374,17 +376,19 @@ class TestCircularDependencies:
             dependencies=[TeamReaderPort],
         )
         db = Database()
-        with pytest.raises(CircularDependencyInModulesError) as exc_info:
-            ApplicationContext(
+        with caplog.at_level(logging.WARNING, logger="spryx_di"):
+            ctx = ApplicationContext(
                 modules=[mod_a, mod_b],
                 globals=[ValueProvider(provide=Database, use_value=db)],
             )
-        assert "a" in str(exc_info.value)
-        assert "b" in str(exc_info.value)
-        assert "Hint" in str(exc_info.value)
+        cycle_warnings = [r for r in caplog.records if "Circular dependency" in r.message]
+        assert len(cycle_warnings) >= 1
+        assert "a" in cycle_warnings[0].message
+        assert "b" in cycle_warnings[0].message
+        assert ctx.container is not None
 
-    def test_indirect_circular_raises(self) -> None:
-        """A→B→C→A cycle."""
+    def test_indirect_circular_warns(self, caplog: pytest.LogCaptureFixture) -> None:
+        """A→B→C→A cycle emits warning, boots successfully."""
 
         class PortA:
             pass
@@ -410,9 +414,33 @@ class TestCircularDependencies:
             providers=[ClassProvider(provide=PortC, export=True)],
             dependencies=[PortB],
         )
-        with pytest.raises(CircularDependencyInModulesError) as exc_info:
-            ApplicationContext(modules=[mod_a, mod_b, mod_c])
-        assert "a" in str(exc_info.value)
+        with caplog.at_level(logging.WARNING, logger="spryx_di"):
+            ctx = ApplicationContext(modules=[mod_a, mod_b, mod_c])
+        cycle_warnings = [r for r in caplog.records if "Circular dependency" in r.message]
+        assert len(cycle_warnings) >= 1
+        assert "a" in cycle_warnings[0].message
+        assert ctx.container is not None
+
+    def test_provider_circular_dependency_detected_at_boot(self) -> None:
+        """A.__init__ needs B, B.__init__ needs A → error at boot, not at resolve."""
+
+        class ServiceA:
+            def __init__(self, b: ServiceB) -> None:
+                self.b = b
+
+        class ServiceB:
+            def __init__(self, a: ServiceA) -> None:
+                self.a = a
+
+        mod = Module(
+            name="circular",
+            providers=[
+                ClassProvider(provide=ServiceA),
+                ClassProvider(provide=ServiceB),
+            ],
+        )
+        with pytest.raises(CircularDependencyError):
+            ApplicationContext(modules=[mod])
 
     def test_no_cycle_when_unidirectional(self) -> None:
         """A→B is fine when B doesn't depend on A."""
