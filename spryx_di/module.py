@@ -291,22 +291,16 @@ class ApplicationContext:
         for module in self._modules:
             self._module_containers[module.name] = self._build_module_container(module)
 
-        # 8b. Re-resolve exported ExistingProviders from the owning module
-        #     container so internal dependencies stay correctly scoped.
+        # 8b. Eagerly resolve exported ExistingProviders and pin as instances
+        #     so the lazy factory (which re-resolves on every call) is replaced.
         for module in self._modules:
             for item in module.providers:
                 provider = _normalize_provider(item)
                 if not (isinstance(provider, ExistingProvider) and provider.export):
                     continue
-                mod_container = self._module_containers[module.name]
-                resolved = mod_container.resolve(provider.use_existing)
+                resolved = self._container.resolve(provider.use_existing)
                 self._container._factories.pop(provider.provide, None)
                 self._container._instances[provider.provide] = resolved
-                if (
-                    provider.use_existing in self._container._singletons
-                    and provider.use_existing not in self._container._singleton_cache
-                ):
-                    self._container._singleton_cache[provider.use_existing] = resolved
 
         # 9. Warn about dead code
         for warning in self.analyze():
