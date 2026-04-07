@@ -302,7 +302,10 @@ class ApplicationContext:
                 resolved = mod_container.resolve(provider.use_existing)
                 self._container._factories.pop(provider.provide, None)
                 self._container._instances[provider.provide] = resolved
-                if provider.use_existing in self._container._singletons:
+                if (
+                    provider.use_existing in self._container._singletons
+                    and provider.use_existing not in self._container._singleton_cache
+                ):
                     self._container._singleton_cache[provider.use_existing] = resolved
 
         # 9. Warn about dead code
