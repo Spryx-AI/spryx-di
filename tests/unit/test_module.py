@@ -1507,4 +1507,3 @@ class TestDeadCodeWarnings:
             if "none of its providers" in r.message and "consumer" in r.message
         ]
         assert len(unused_dep_warnings) == 0
-
