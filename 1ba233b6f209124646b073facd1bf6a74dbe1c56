@@ -1,0 +1,23 @@
+tests/unit/test_module.py
+  d4a0b0bd98ecebb6 915-959
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.5",
+  "base_commit_sha": "1ba233b6f209124646b073facd1bf6a74dbe1c56",
+  "prompts": {
+    "d4a0b0bd98ecebb6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "792ea06a-f5a4-4703-ae67-d20a855111cd",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Pedro Cantidio",
+      "messages": [],
+      "total_additions": 45,
+      "total_deletions": 0,
+      "accepted_lines": 45,
+      "overriden_lines": 0
+    }
+  }
+}
