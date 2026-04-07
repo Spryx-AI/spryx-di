@@ -1,0 +1,23 @@
+spryx_di/module.py
+  d4a0b0bd98ecebb6 305-308
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.5",
+  "base_commit_sha": "80a92da4b1e2f841c2a8d594ff03d1d7436dd6a7",
+  "prompts": {
+    "d4a0b0bd98ecebb6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "792ea06a-f5a4-4703-ae67-d20a855111cd",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Pedro Cantidio",
+      "messages": [],
+      "total_additions": 4,
+      "total_deletions": 1,
+      "accepted_lines": 4,
+      "overriden_lines": 0
+    }
+  }
+}
