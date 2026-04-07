@@ -143,10 +143,10 @@ class TestCheckOrphanProviders:
         warnings = _check_orphan_providers([mod])
         assert len(warnings) == 0
 
-    def test_no_warning_for_public(self) -> None:
+    def test_no_warning_for_exported_class_provider(self) -> None:
         mod = Module(
             name="agent",
-            providers=[ClassProvider(provide=MyService, public=True)],
+            providers=[ClassProvider(provide=MyService, export=True)],
         )
         warnings = _check_orphan_providers([mod])
         assert len(warnings) == 0
@@ -188,7 +188,7 @@ class TestCheckOrphanProviders:
             name="agent",
             providers=[
                 ClassProvider(provide=DeterministicEvaluator),
-                ClassProvider(provide=Pipeline, public=True),
+                ClassProvider(provide=Pipeline, export=True),
             ],
         )
         warnings = _check_orphan_providers([mod])
@@ -204,7 +204,7 @@ class TestCheckOrphanProviders:
             name="drive",
             providers=[
                 ClassProvider(provide=WebhookRepo),
-                FactoryProvider(provide=DriveSubscription, use_factory=_factory, public=True),
+                FactoryProvider(provide=DriveSubscription, use_factory=_factory, export=True),
             ],
         )
         warnings = _check_orphan_providers([mod])
@@ -215,7 +215,7 @@ class TestCheckOrphanProviders:
         mod = Module(
             name="test",
             providers=[
-                ClassProvider(provide=ProtocolConsumer, public=True),
+                ClassProvider(provide=ProtocolConsumer, export=True),
                 ClassProvider(provide=Named),
             ],
         )

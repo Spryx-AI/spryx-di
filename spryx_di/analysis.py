@@ -69,7 +69,7 @@ def _check_orphan_providers(modules: list[Module]) -> list[str]:
 
         for item in module.providers:
             provider = _normalize_provider(item)
-            if provider.export or provider.public:
+            if provider.export:
                 continue
             if provider.provide in existing_targets:
                 continue
@@ -77,7 +77,7 @@ def _check_orphan_providers(modules: list[Module]) -> list[str]:
                 warnings.append(
                     f"Module '{module.name}' has orphan provider "
                     f"'{provider.provide.__name__}' "
-                    f"(not used, not exported, not public). "
+                    f"(not used, not exported). "
                     f"Consider removing it."
                 )
     return warnings

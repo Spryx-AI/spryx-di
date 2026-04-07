@@ -9,7 +9,6 @@ from spryx_di.errors import (
     InvalidListenerError,
     MissingEventBackendError,
     ModuleBoundaryError,
-    PublicAccessError,
     SerializationError,
     SpryxDIError,
     TypeHintRequiredError,
@@ -33,7 +32,6 @@ from spryx_di.provider import (
     Provider,
     Scope,
     ValueProvider,
-    public,
 )
 
 __all__ = [
@@ -56,7 +54,6 @@ __all__ = [
     "MissingEventBackendError",
     "Module",
     "ModuleBoundaryError",
-    "PublicAccessError",
     "Provider",
     "ScopedContainer",
     "Scope",
@@ -67,5 +64,4 @@ __all__ = [
     "UnresolvedImportError",
     "UnresolvableTypeError",
     "ValueProvider",
-    "public",
 ]

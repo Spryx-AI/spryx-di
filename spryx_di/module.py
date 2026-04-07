@@ -219,18 +219,18 @@ class ApplicationContext:
         self._modules = modules
         self._globals = globals or []
         self._event_backend = event_backend
-        self._container = Container()
+        self._boot_container = Container()
+        self._container = self._boot_container
         self._module_containers: dict[str, Container] = {}
         self._provider_to_module: dict[type, str] = {}
         self._export_registry: dict[type, str] = {}
-        self._public_types: set[type] = set()
         self._managed_instances: list[object] = []
         self._event_registry: dict[str, type] = {}
         self._handler_registry: dict[str, type[EventHandler]] = {}
         self._boot()
 
     def _boot(self) -> None:
-        # 1. Build export registry and public set from providers
+        # 1. Build export registry from providers
         for module in self._modules:
             for item in module.providers:
                 provider = _normalize_provider(item)
@@ -242,16 +242,12 @@ class ApplicationContext:
                             module.name,
                         )
                     self._export_registry[provider.provide] = module.name
-                if provider.public:
-                    self._public_types.add(provider.provide)
 
         # 2. Collect global types for dependency validation
         global_types: set[type] = set()
         for item in self._globals:
             provider = _normalize_provider(item)
             global_types.add(provider.provide)
-            if provider.public:
-                self._public_types.add(provider.provide)
 
         # 3. Validate every dependency is satisfied by some export or global
         for module in self._modules:
@@ -278,13 +274,13 @@ class ApplicationContext:
 
         # 6. Register globals
         for item in self._globals:
-            _register_provider(self._container, _normalize_provider(item))
+            _register_provider(self._boot_container, _normalize_provider(item))
 
         # 7. Register providers from all modules
         for module in self._modules:
             for item in module.providers:
                 provider = _normalize_provider(item)
-                _register_provider(self._container, provider)
+                _register_provider(self._boot_container, provider)
                 self._provider_to_module[provider.provide] = module.name
 
         # 8. Build per-module containers
@@ -298,9 +294,9 @@ class ApplicationContext:
                 provider = _normalize_provider(item)
                 if not (isinstance(provider, ExistingProvider) and provider.export):
                     continue
-                resolved = self._container.resolve(provider.use_existing)
-                self._container._factories.pop(provider.provide, None)
-                self._container._instances[provider.provide] = resolved
+                resolved = self._boot_container.resolve(provider.use_existing)
+                self._boot_container._factories.pop(provider.provide, None)
+                self._boot_container._instances[provider.provide] = resolved
 
         # 9. Warn about dead code
         for warning in self.analyze():
@@ -309,6 +305,46 @@ class ApplicationContext:
         # 10. Event system + managed instances
         self._boot_event_system()
         self._collect_managed_instances()
+
+        # 11. Build public container (only globals + exports).
+        #     The boot container keeps all providers for internal use
+        #     (EventBus handler resolution, module containers, etc.).
+        self._container = self._build_public_container()
+
+    def _build_public_container(self) -> Container:
+        from spryx_di.events.bus import EventBus
+
+        allowed: set[type] = set()
+        for item in self._globals:
+            allowed.add(_normalize_provider(item).provide)
+        allowed.update(self._export_registry)
+        if self._boot_container.has(EventBus):
+            allowed.add(EventBus)
+
+        pub = Container(auto_wire=False)
+        transient_types = self._transient_exported_types()
+        for t in allowed:
+            if t in self._boot_container._instances:
+                pub._instances[t] = self._boot_container._instances[t]
+            elif t in transient_types:
+                pub._factories[t] = lambda c, _t=t: self._boot_container.resolve(_t)
+            else:
+                instance = self._boot_container.resolve(t)
+                pub._instances[t] = instance
+        return pub
+
+    def _transient_exported_types(self) -> set[type]:
+        result: set[type] = set()
+        for module in self._modules:
+            for item in module.providers:
+                provider = _normalize_provider(item)
+                if (
+                    provider.export
+                    and isinstance(provider, (ClassProvider, FactoryProvider))
+                    and provider.scope == Scope.TRANSIENT
+                ):
+                    result.add(provider.provide)
+        return result
 
     def _build_module_container(
         self,
@@ -324,9 +360,9 @@ class ApplicationContext:
         for item in module.providers:
             _register_provider(mod_container, _normalize_provider(item))
 
-        # Dependencies — resolve each port from the main container
+        # Dependencies — resolve each port from the boot container
         for dep_type in module.dependencies:
-            instance = self._container.resolve(dep_type)
+            instance = self._boot_container.resolve(dep_type)
             mod_container.instance(dep_type, instance)
 
         return mod_container
@@ -391,10 +427,10 @@ class ApplicationContext:
             return
 
         event_bus = EventBus(
-            container=self._container,
+            container=self._boot_container,
             async_backend=self._event_backend,
         )
-        self._container.instance(EventBus, event_bus)
+        self._boot_container.instance(EventBus, event_bus)
 
         for listener in all_listeners:
             event_bus.register_handler(
@@ -440,12 +476,9 @@ class ApplicationContext:
     def handler_registry(self) -> dict[str, type[EventHandler]]:
         return self._handler_registry
 
-    def is_public(self, type_: type) -> bool:
-        return type_ in self._public_types
-
     def _collect_managed_instances(self) -> None:
         seen: set[int] = set()
-        for obj in self._container._instances.values():
+        for obj in self._boot_container._instances.values():
             if id(obj) in seen:
                 continue
             seen.add(id(obj))
@@ -453,7 +486,7 @@ class ApplicationContext:
                 self._managed_instances.append(obj)
 
     def on_shutdown(self, hook: ShutdownHook) -> None:
-        self._container.on_shutdown(hook)
+        self._boot_container.on_shutdown(hook)
 
     async def shutdown(self) -> None:
         import asyncio
@@ -480,7 +513,7 @@ class ApplicationContext:
                     await result
         self._managed_instances.clear()
 
-        await self._container.shutdown()
+        await self._boot_container.shutdown()
 
     def create_scope(self) -> ScopedContainer:
         return self._container.create_scope()

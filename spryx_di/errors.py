@@ -75,19 +75,6 @@ class ModuleBoundaryError(SpryxDIError):
         )
 
 
-class PublicAccessError(SpryxDIError):
-    """Raised when Inject() tries to resolve a type that is not public."""
-
-    def __init__(self, type_: type) -> None:
-        self.type_ = type_
-        super().__init__(
-            f"'{type_.__name__}' is not public.\n"
-            f"Only providers marked with public=True can be used in Inject().\n\n"
-            f"  Hint: If this is a use case or query handler for a router endpoint,\n"
-            f"  add public=True to its provider in the module definition."
-        )
-
-
 class UnresolvedDependencyError(SpryxDIError):
     """Module depends on a port that no module exports."""
 

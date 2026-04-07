@@ -14,9 +14,9 @@ from spryx_di import (
     Module,
     ModuleBoundaryError,
     Scope,
+    UnresolvableTypeError,
     UnresolvedDependencyError,
     ValueProvider,
-    public,
 )
 
 
@@ -122,7 +122,7 @@ class TestModuleDefinition:
             providers=[PgTeamReader],
         )
         ctx = ApplicationContext(modules=[module])
-        reader = ctx.resolve(PgTeamReader)
+        reader = ctx.resolve_within(module, PgTeamReader)
         assert isinstance(reader, PgTeamReader)
 
 
@@ -228,6 +228,34 @@ class TestApplicationContext:
         port = ctx.resolve_within(conversations, TeamReaderPort)
         assert isinstance(port, PgTeamReader)
 
+    def test_internal_providers_auto_wired_within_module(self) -> None:
+        """Non-exported providers are resolved with full auto-wiring inside their module."""
+
+        class Settings:
+            dsn = "postgres://localhost"
+
+        class Repo:
+            def __init__(self, settings: Settings) -> None:
+                self.dsn = settings.dsn
+
+        class UseCase:
+            def __init__(self, repo: Repo) -> None:
+                self.repo = repo
+
+        mod = Module(
+            name="core",
+            providers=[
+                ClassProvider(provide=Settings),
+                ClassProvider(provide=Repo),
+                ClassProvider(provide=UseCase),
+            ],
+        )
+        ctx = ApplicationContext(modules=[mod], globals=[])
+
+        uc = ctx.resolve_within(mod, UseCase)
+        assert isinstance(uc.repo, Repo)
+        assert uc.repo.dsn == "postgres://localhost"
+
     def test_provider_without_export_not_visible_to_other_modules(self) -> None:
         """Providers without export=True should not be visible to other modules."""
         identity = Module(
@@ -255,6 +283,149 @@ class TestApplicationContext:
         # Cannot access non-exported provider from another module
         with pytest.raises(ModuleBoundaryError):
             ctx.resolve_within(consumer, TeamReader)
+
+    def test_non_exported_provider_not_resolvable_from_global(self) -> None:
+        """ctx.resolve() must not expose internal providers without export=True."""
+        identity = Module(
+            name="identity",
+            providers=[
+                ClassProvider(provide=TeamReader, use_class=PgTeamReader),  # not exported
+                ExistingProvider(provide=TeamReaderPort, use_existing=TeamReader, export=True),
+            ],
+        )
+        db = Database()
+        ctx = ApplicationContext(
+            modules=[identity],
+            globals=[ValueProvider(provide=Database, use_value=db)],
+        )
+
+        # Exported port is resolvable
+        assert isinstance(ctx.resolve(TeamReaderPort), PgTeamReader)
+
+        # Internal provider must NOT be resolvable from global
+        with pytest.raises(UnresolvableTypeError):
+            ctx.resolve(TeamReader)
+
+    def test_inject_rejects_non_exported_use_case(self) -> None:
+        """Inject() path (ctx.container.resolve) rejects a use case without export=True."""
+
+        class Repo:
+            pass
+
+        class UseCase:
+            def __init__(self, repo: Repo) -> None:
+                self.repo = repo
+
+        mod = Module(
+            name="core",
+            providers=[
+                ClassProvider(provide=Repo),
+                ClassProvider(provide=UseCase),  # no export
+            ],
+        )
+        ctx = ApplicationContext(modules=[mod], globals=[])
+
+        # Simulate Inject(): container.resolve(cls)
+        with pytest.raises(UnresolvableTypeError):
+            ctx.container.resolve(UseCase)
+
+    def test_inject_resolves_exported_use_case(self) -> None:
+        """Inject() path (ctx.container.resolve) resolves a use case with export=True."""
+
+        class Repo:
+            pass
+
+        class UseCase:
+            def __init__(self, repo: Repo) -> None:
+                self.repo = repo
+
+        mod = Module(
+            name="core",
+            providers=[
+                ClassProvider(provide=Repo),  # internal
+                ClassProvider(provide=UseCase, export=True),
+            ],
+        )
+        ctx = ApplicationContext(modules=[mod], globals=[])
+
+        # Simulate Inject(): container.resolve(cls)
+        result = ctx.container.resolve(UseCase)
+        assert isinstance(result, UseCase)
+        assert isinstance(result.repo, Repo)
+
+
+class TestCrossModuleExportVisibility:
+    def test_non_exported_service_not_available_as_dependency(self) -> None:
+        """A module cannot depend on a port that is not exported."""
+        from typing import Protocol
+
+        class EmailPort(Protocol):
+            def send(self) -> None: ...
+
+        class SmtpService:
+            def send(self) -> None:
+                pass
+
+        notification = Module(
+            name="notification",
+            providers=[
+                ClassProvider(provide=SmtpService),
+                ExistingProvider(provide=EmailPort, use_existing=SmtpService),  # no export
+            ],
+        )
+
+        class SendInvite:
+            def __init__(self, email: EmailPort) -> None:
+                self.email = email
+
+        identity = Module(
+            name="identity",
+            providers=[ClassProvider(provide=SendInvite)],
+            dependencies=[EmailPort],
+        )
+
+        with pytest.raises(UnresolvedDependencyError):
+            ApplicationContext(
+                modules=[notification, identity],
+                globals=[],
+            )
+
+    def test_exported_service_available_as_dependency(self) -> None:
+        """A module can depend on an exported port from another module."""
+        from typing import Protocol
+
+        class EmailPort(Protocol):
+            def send(self) -> None: ...
+
+        class SmtpService:
+            def send(self) -> None:
+                pass
+
+        notification = Module(
+            name="notification",
+            providers=[
+                ClassProvider(provide=SmtpService),
+                ExistingProvider(provide=EmailPort, use_existing=SmtpService, export=True),
+            ],
+        )
+
+        class SendInvite:
+            def __init__(self, email: EmailPort) -> None:
+                self.email = email
+
+        identity = Module(
+            name="identity",
+            providers=[ClassProvider(provide=SendInvite)],
+            dependencies=[EmailPort],
+        )
+
+        ctx = ApplicationContext(
+            modules=[notification, identity],
+            globals=[],
+        )
+
+        invite = ctx.resolve_within(identity, SendInvite)
+        assert isinstance(invite.email, SmtpService)
 
 
 class TestModuleBoundary:
@@ -454,7 +625,7 @@ class TestCircularDependencies:
         mod_b = Module(
             name="b",
             providers=[
-                ClassProvider(provide=BillingGateway, use_class=StripeBillingGateway),
+                ClassProvider(provide=BillingGateway, use_class=StripeBillingGateway, export=True),
             ],
             dependencies=[TeamReaderPort],
         )
@@ -585,7 +756,7 @@ class TestUseFactory:
         mod = Module(
             name="test",
             providers=[
-                FactoryProvider(provide=Database, use_factory=counting_factory),
+                FactoryProvider(provide=Database, use_factory=counting_factory, export=True),
             ],
         )
         ctx = ApplicationContext(modules=[mod])
@@ -606,8 +777,8 @@ class TestUseFactory:
             ],
         )
         ctx = ApplicationContext(modules=[mod])
-        a = ctx.resolve(Database)
-        b = ctx.resolve(Database)
+        a = ctx.resolve_within(mod, Database)
+        b = ctx.resolve_within(mod, Database)
         assert a is not b
 
 
@@ -661,7 +832,7 @@ class TestFactoryProviderDepsArgs:
         mod = Module(
             name="test",
             providers=[
-                FactoryProvider(provide=PgTeamReader, deps={"db": Database}),
+                FactoryProvider(provide=PgTeamReader, deps={"db": Database}, export=True),
             ],
         )
         ctx = ApplicationContext(
@@ -686,7 +857,7 @@ class TestFactoryProviderDepsArgs:
                 FactoryProvider(
                     provide=ServiceWithTwoDeps,
                     deps={"reader": TeamReader, "repo": TeamRepository},
-                    public=True,
+                    export=True,
                 ),
             ],
         )
@@ -716,6 +887,7 @@ class TestFactoryProviderDepsArgs:
                 FactoryProvider(
                     provide=Client,
                     args={"api_key": lambda c: c.resolve(Settings).api_key},
+                    export=True,
                 ),
             ],
         )
@@ -743,6 +915,7 @@ class TestFactoryProviderDepsArgs:
                         "api_key": lambda c: "key-456",
                         "debug": lambda c: True,
                     },
+                    export=True,
                 ),
             ],
         )
@@ -761,7 +934,7 @@ class TestFactoryProviderDepsArgs:
         mod = Module(
             name="test",
             providers=[
-                FactoryProvider(provide=PgTeamReader, deps={"db": Database}),
+                FactoryProvider(provide=PgTeamReader, deps={"db": Database}, export=True),
             ],
         )
         db = Database()
@@ -789,8 +962,8 @@ class TestFactoryProviderDepsArgs:
             modules=[mod],
             globals=[ValueProvider(provide=Database, use_value=db)],
         )
-        a = ctx.resolve(PgTeamReader)
-        b = ctx.resolve(PgTeamReader)
+        a = ctx.resolve_within(mod, PgTeamReader)
+        b = ctx.resolve_within(mod, PgTeamReader)
         assert a is not b
         assert a.db is db
 
@@ -804,7 +977,7 @@ class TestFactoryProviderDepsArgs:
                 FactoryProvider(
                     provide=PgTeamReader,
                     deps={"db": Database},
-                    public=True,
+                    export=True,
                 ),
             ],
         )
@@ -881,7 +1054,7 @@ class TestUseExisting:
             name="identity",
             providers=[
                 ClassProvider(provide=TeamReader, use_class=PgTeamReader),
-                ExistingProvider(provide=UserReader, use_existing=TeamReader),
+                ExistingProvider(provide=UserReader, use_existing=TeamReader, export=True),
             ],
         )
         ctx = ApplicationContext(
@@ -902,7 +1075,7 @@ class TestUseExisting:
         consumer = Module(
             name="consumer",
             providers=[
-                ExistingProvider(provide=UserReader, use_existing=TeamReaderPort),
+                ExistingProvider(provide=UserReader, use_existing=TeamReaderPort, export=True),
             ],
             dependencies=[TeamReaderPort],
         )
@@ -1334,104 +1507,3 @@ class TestDeadCodeWarnings:
             if "none of its providers" in r.message and "consumer" in r.message
         ]
         assert len(unused_dep_warnings) == 0
-
-    def test_public_provider_no_unused_warning(self, caplog: pytest.LogCaptureFixture) -> None:
-        """Public provider should NOT trigger unused warning even if no internal consumer."""
-        mod = Module(
-            name="agent",
-            providers=[
-                ClassProvider(provide=TeamReader, use_class=PgTeamReader, public=True),
-            ],
-        )
-        with caplog.at_level("WARNING", logger="spryx_di"):
-            ApplicationContext(
-                modules=[mod],
-                globals=[ValueProvider(provide=Database, use_value=Database())],
-            )
-        unused = [r for r in caplog.records if "orphan provider" in r.message]
-        assert len(unused) == 0
-
-
-class TestPublicHelper:
-    def test_public_creates_class_providers(self) -> None:
-        providers = public(TeamReader, ConversationRepo)
-        assert len(providers) == 2
-        assert all(isinstance(p, ClassProvider) for p in providers)
-        assert all(p.public is True for p in providers)
-        assert all(p.export is False for p in providers)
-        assert providers[0].provide is TeamReader
-        assert providers[0].use_class is TeamReader
-        assert providers[1].provide is ConversationRepo
-        assert providers[1].use_class is ConversationRepo
-
-    def test_public_providers_resolvable(self) -> None:
-        mod = Module(
-            name="agent",
-            providers=[
-                *public(PgConversationRepo),
-            ],
-        )
-        ctx = ApplicationContext(modules=[mod])
-        assert isinstance(ctx.resolve(PgConversationRepo), PgConversationRepo)
-
-
-class TestIsPublic:
-    def test_is_public_returns_true_for_public_provider(self) -> None:
-        mod = Module(
-            name="agent",
-            providers=[ClassProvider(provide=TeamReader, use_class=PgTeamReader, public=True)],
-        )
-        ctx = ApplicationContext(
-            modules=[mod],
-            globals=[ValueProvider(provide=Database, use_value=Database())],
-        )
-        assert ctx.is_public(TeamReader) is True
-
-    def test_is_public_returns_false_for_internal_provider(self) -> None:
-        mod = Module(
-            name="agent",
-            providers=[ClassProvider(provide=TeamReader, use_class=PgTeamReader)],
-        )
-        ctx = ApplicationContext(
-            modules=[mod],
-            globals=[ValueProvider(provide=Database, use_value=Database())],
-        )
-        assert ctx.is_public(TeamReader) is False
-
-    def test_is_public_returns_false_for_export_only(self) -> None:
-        mod = Module(
-            name="agent",
-            providers=[ClassProvider(provide=TeamReader, use_class=PgTeamReader, export=True)],
-        )
-        ctx = ApplicationContext(
-            modules=[mod],
-            globals=[ValueProvider(provide=Database, use_value=Database())],
-        )
-        assert ctx.is_public(TeamReader) is False
-
-    def test_is_public_returns_true_for_export_and_public(self) -> None:
-        mod = Module(
-            name="agent",
-            providers=[
-                ClassProvider(provide=TeamReader, use_class=PgTeamReader, export=True, public=True)
-            ],
-        )
-        ctx = ApplicationContext(
-            modules=[mod],
-            globals=[ValueProvider(provide=Database, use_value=Database())],
-        )
-        assert ctx.is_public(TeamReader) is True
-
-    def test_is_public_returns_true_for_public_global(self) -> None:
-        ctx = ApplicationContext(
-            modules=[],
-            globals=[ValueProvider(provide=Database, use_value=Database(), public=True)],
-        )
-        assert ctx.is_public(Database) is True
-
-    def test_is_public_returns_false_for_non_public_global(self) -> None:
-        ctx = ApplicationContext(
-            modules=[],
-            globals=[ValueProvider(provide=Database, use_value=Database())],
-        )
-        assert ctx.is_public(Database) is False
