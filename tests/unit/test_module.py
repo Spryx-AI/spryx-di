@@ -912,6 +912,103 @@ class TestUseExisting:
         )
         assert isinstance(ctx.resolve(UserReader), PgTeamReader)
 
+    def test_exported_existing_provider_resolves_from_module_container(self) -> None:
+        """Exported ExistingProvider resolves from owning module, not global container."""
+
+        class InternalConfig:
+            def __init__(self, value: str) -> None:
+                self.value = value
+
+        class ServiceA:
+            def __init__(self, cfg: InternalConfig) -> None:
+                self.cfg_value = cfg.value
+
+        class ServiceB:
+            def __init__(self, cfg: InternalConfig) -> None:
+                self.cfg_value = cfg.value
+
+        class PortA:
+            cfg_value: str
+
+        class PortB:
+            cfg_value: str
+
+        mod_a = Module(
+            name="mod_a",
+            providers=[
+                ValueProvider(provide=InternalConfig, use_value=InternalConfig("A")),
+                ClassProvider(provide=ServiceA),
+                ExistingProvider(provide=PortA, use_existing=ServiceA, export=True),
+            ],
+        )
+        mod_b = Module(
+            name="mod_b",
+            providers=[
+                ValueProvider(provide=InternalConfig, use_value=InternalConfig("B")),
+                ClassProvider(provide=ServiceB),
+                ExistingProvider(provide=PortB, use_existing=ServiceB, export=True),
+            ],
+        )
+
+        ctx = ApplicationContext(modules=[mod_a, mod_b], globals=[])
+
+        a = ctx.resolve(PortA)
+        b = ctx.resolve(PortB)
+
+        assert a.cfg_value == "A"
+        assert b.cfg_value == "B"
+
+    def test_exported_existing_provider_uses_module_internal_deps(self) -> None:
+        """Exported ExistingProvider resolves internal deps from owning module."""
+        from typing import Protocol, runtime_checkable
+
+        @runtime_checkable
+        class EmailSenderPort(Protocol):
+            def send(self) -> str: ...
+
+        class NotificationSettings:
+            def __init__(self) -> None:
+                self.api_key = "re_fake"
+
+        class ResendEmailSender:
+            def __init__(self, settings: NotificationSettings) -> None:
+                self._key = settings.api_key
+
+            def send(self) -> str:
+                return self._key
+
+        notification_module = Module(
+            name="notification",
+            providers=[
+                ClassProvider(provide=NotificationSettings),
+                ClassProvider(provide=ResendEmailSender),
+                ExistingProvider(
+                    provide=EmailSenderPort,
+                    use_existing=ResendEmailSender,
+                    export=True,
+                ),
+            ],
+        )
+
+        class CreateInvitation:
+            def __init__(self, email_sender: EmailSenderPort) -> None:
+                self._sender = email_sender
+
+        identity_module = Module(
+            name="identity",
+            dependencies=[EmailSenderPort],
+            providers=[ClassProvider(provide=CreateInvitation)],
+        )
+
+        ctx = ApplicationContext(
+            modules=[notification_module, identity_module],
+            globals=[],
+        )
+
+        invitation = ctx.resolve_within(identity_module, CreateInvitation)
+        assert isinstance(invitation._sender, ResendEmailSender)
+        assert invitation._sender.send() == "re_fake"
+
 
 class FakeResource:
     def __init__(self) -> None:
