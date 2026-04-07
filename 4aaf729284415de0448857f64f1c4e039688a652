@@ -1,0 +1,25 @@
+spryx_di/module.py
+  4ea947143822eb49 13,97-147,235-243,245-248,252,259,263,267,296,306-307,311-312,325
+tests/unit/test_module.py
+  4ea947143822eb49 3-4,10,358-359,379-380,384-388,390-391,417-422,424-443
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.5",
+  "base_commit_sha": "4aaf729284415de0448857f64f1c4e039688a652",
+  "prompts": {
+    "4ea947143822eb49": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "54a7521f-5648-40a7-941d-b0908dd76df1",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Pedro Cantidio",
+      "messages": [],
+      "total_additions": 575,
+      "total_deletions": 37,
+      "accepted_lines": 117,
+      "overriden_lines": 0
+    }
+  }
+}
