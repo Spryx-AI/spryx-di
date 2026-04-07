@@ -912,52 +912,6 @@ class TestUseExisting:
         )
         assert isinstance(ctx.resolve(UserReader), PgTeamReader)
 
-    def test_exported_existing_provider_resolves_from_module_container(self) -> None:
-        """Exported ExistingProvider resolves from owning module, not global container."""
-
-        class InternalConfig:
-            def __init__(self, value: str) -> None:
-                self.value = value
-
-        class ServiceA:
-            def __init__(self, cfg: InternalConfig) -> None:
-                self.cfg_value = cfg.value
-
-        class ServiceB:
-            def __init__(self, cfg: InternalConfig) -> None:
-                self.cfg_value = cfg.value
-
-        class PortA:
-            cfg_value: str
-
-        class PortB:
-            cfg_value: str
-
-        mod_a = Module(
-            name="mod_a",
-            providers=[
-                ValueProvider(provide=InternalConfig, use_value=InternalConfig("A")),
-                ClassProvider(provide=ServiceA),
-                ExistingProvider(provide=PortA, use_existing=ServiceA, export=True),
-            ],
-        )
-        mod_b = Module(
-            name="mod_b",
-            providers=[
-                ValueProvider(provide=InternalConfig, use_value=InternalConfig("B")),
-                ClassProvider(provide=ServiceB),
-                ExistingProvider(provide=PortB, use_existing=ServiceB, export=True),
-            ],
-        )
-
-        ctx = ApplicationContext(modules=[mod_a, mod_b], globals=[])
-
-        a = ctx.resolve(PortA)
-        b = ctx.resolve(PortB)
-
-        assert a.cfg_value == "A"
-        assert b.cfg_value == "B"
-
     def test_exported_existing_provider_uses_module_internal_deps(self) -> None:
         """Exported ExistingProvider resolves internal deps from owning module."""
         from typing import Protocol, runtime_checkable
