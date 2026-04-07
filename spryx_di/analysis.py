@@ -25,21 +25,6 @@ def _check_unused_dependencies(modules: list[Module]) -> list[str]:
     return warnings
 
 
-def _check_unconsumed_exports(ctx: ApplicationContext) -> list[str]:
-    warnings: list[str] = []
-    all_dependencies: set[type] = set()
-    for module in ctx._modules:
-        all_dependencies.update(module.dependencies)
-    for export_type, module_name in ctx._export_registry.items():
-        if export_type not in all_dependencies:
-            warnings.append(
-                f"Module '{module_name}' exports '{export_type.__name__}' "
-                f"but no module depends on it. "
-                f"Consider removing export=True from the provider."
-            )
-    return warnings
-
-
 def _is_needed(provider_type: type, needed_types: set[type]) -> bool:
     if provider_type in needed_types:
         return True
@@ -86,6 +71,5 @@ def _check_orphan_providers(modules: list[Module]) -> list[str]:
 def analyze(ctx: ApplicationContext) -> list[str]:
     warnings: list[str] = []
     warnings.extend(_check_unused_dependencies(ctx._modules))
-    warnings.extend(_check_unconsumed_exports(ctx))
     warnings.extend(_check_orphan_providers(ctx._modules))
     return warnings

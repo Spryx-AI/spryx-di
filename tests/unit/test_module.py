@@ -1462,23 +1462,6 @@ class TestDeadCodeWarnings:
             for r in caplog.records
         )
 
-    def test_unconsumed_export_warns(self, caplog: pytest.LogCaptureFixture) -> None:
-        """Module exports a type but no module depends on it."""
-        identity = Module(
-            name="identity",
-            providers=[
-                ClassProvider(provide=TeamReaderPort, export=True),
-            ],
-        )
-        with caplog.at_level("WARNING", logger="spryx_di"):
-            ApplicationContext(modules=[identity])
-        assert any(
-            "identity" in r.message
-            and "TeamReaderPort" in r.message
-            and "no module depends" in r.message
-            for r in caplog.records
-        )
-
     def test_no_warning_when_dependency_is_used(self, caplog: pytest.LogCaptureFixture) -> None:
         """No warning when dependency is actually consumed by a provider's __init__."""
 
@@ -1505,24 +1488,6 @@ class TestDeadCodeWarnings:
             ApplicationContext(modules=[provider_mod, consumer_mod])
         unused_dep_warnings = [r for r in caplog.records if "none of its providers" in r.message]
         assert len(unused_dep_warnings) == 0
-
-    def test_no_warning_when_export_is_consumed(self, caplog: pytest.LogCaptureFixture) -> None:
-        """No warning when another module depends on the exported type."""
-        identity = Module(
-            name="identity",
-            providers=[
-                ClassProvider(provide=TeamReaderPort, export=True),
-            ],
-        )
-        consumer = Module(
-            name="consumer",
-            providers=[ClassProvider(provide=ConversationRepo, use_class=PgConversationRepo)],
-            dependencies=[TeamReaderPort],
-        )
-        with caplog.at_level("WARNING", logger="spryx_di"):
-            ApplicationContext(modules=[identity, consumer])
-        unconsumed_warnings = [r for r in caplog.records if "no module depends" in r.message]
-        assert len(unconsumed_warnings) == 0
 
     def test_unused_dependency_with_existing_provider(
         self, caplog: pytest.LogCaptureFixture
