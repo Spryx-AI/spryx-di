@@ -242,3 +242,21 @@ class TestPartialHintResolution:
             assert isinstance(result.registered, _RegisteredDep)
         finally:
             mod._TypeCheckingOnlyDep = original
+
+    def test_type_checking_import_resolved_via_container(self, container: Container) -> None:
+        """TYPE_CHECKING dep resolved when registered in the container."""
+        container.singleton(_TypeCheckingOnlyDep, _TypeCheckingOnlyDep)
+        container.singleton(_RegisteredDep, _RegisteredDep)
+        container.register(_ServiceWithMixedHints, _ServiceWithMixedHints)
+
+        import test_autowiring_fixes as mod
+
+        original = mod._TypeCheckingOnlyDep
+        delattr(mod, "_TypeCheckingOnlyDep")
+        try:
+            result = container.resolve(_ServiceWithMixedHints)
+            assert isinstance(result, _ServiceWithMixedHints)
+            assert isinstance(result.registered, _RegisteredDep)
+            assert isinstance(result.unavailable, original)
+        finally:
+            mod._TypeCheckingOnlyDep = original
