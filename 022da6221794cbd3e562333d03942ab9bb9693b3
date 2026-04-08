@@ -1,0 +1,23 @@
+tests/unit/test_autowiring_fixes.py
+  d4a0b0bd98ecebb6 245-262
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.5",
+  "base_commit_sha": "022da6221794cbd3e562333d03942ab9bb9693b3",
+  "prompts": {
+    "d4a0b0bd98ecebb6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "792ea06a-f5a4-4703-ae67-d20a855111cd",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Pedro Cantidio",
+      "messages": [],
+      "total_additions": 18,
+      "total_deletions": 0,
+      "accepted_lines": 18,
+      "overriden_lines": 0
+    }
+  }
+}
